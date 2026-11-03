@@ -1,4 +1,4 @@
-import React, {useEffect,useState} from 'react';
+rom 'react';
   if(!db){
     M('Supabase সংযোগ পাওয়া যায়নি');
     return;
@@ -171,38 +171,4 @@ return <>
 </section>
 </>}
 
-{admin&&<section className="panel">
-<h2>অ্যাডমিন অনুমোদন</h2>
-<h3>বিক্রেতা</h3>
-{apps.map(x=><article key={x.id}>
-{x.shop_name} {x.phone}
-<button onClick={()=>review('seller_applications',x.id,'approved')}>অনুমোদন</button>
-<button className="red" onClick={()=>review('seller_applications',x.id,'rejected')}>বাতিল</button>
-</article>)}
-<h3>পণ্য</h3>
-{pending.map(x=><article key={x.id}>
-{x.title} ৳{x.price}
-<button onClick={()=>review('market_products',x.id,'approved')}>অনুমোদন</button>
-<button className="red" onClick={()=>review('market_products',x.id,'rejected')}>বাতিল</button>
-</article>)}
-</section>}
-
-<h2>অনুমোদিত পণ্য</h2>
-<div className="products">
-{products.map(p=><article className="product" key={p.id}>
-<b>{p.title}</b>
-<p>{p.category}</p>
-<strong>৳{p.price}</strong>
-<p>{p.description}</p>
-</article>)}
-</div>
-
-{msg&&<p className="message">{msg}</p>}
-<p className="hint">বাস্তব ব্যবহারের আগে অভিভাবক/প্রকল্প-মালিকের সাহায্যে নিরাপত্তা যাচাই করুন। ছবি, কার্ট, অর্ডার, ডেলিভারি ও পেমেন্ট এখনো যুক্ত হয়নি।</p>
-</main>
-
-<footer>© BD BUSINESS</footer>
-</>;
-}
-
-createRoot(document.getElementById('root')).render(<App/>);
+{admin&&<section className="panel">('root')).render(<App/>)
