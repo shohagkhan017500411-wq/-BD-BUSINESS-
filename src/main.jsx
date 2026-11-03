@@ -1,4 +1,19 @@
-import React, {useEffect,useState} from 'react';
+async function signup(){
+  if(!db){
+    M('Supabase সংযোগ পাওয়া যায়নি');
+    return;
+  }
+  if(!email || !password){
+    M('ইমেইল ও পাসওয়ার্ড দিন');
+    return;
+  }
+  if(password.length < 6){
+    M('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে');
+    return;
+  }
+  const r = await db.auth.signUp({email, password});
+  M(r.error ? r.error.message : 'অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল যাচাই করুন।');
+} import React, {useEffect,useState} from 'react';
 import {createRoot} from 'react-dom/client';
 import {createClient} from '@supabase/supabase-js';
 import './style.css';
