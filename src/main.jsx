@@ -146,29 +146,3 @@ return <>
 {session&&<>
 <section className="panel">
 <h2>বিক্রেতা নিবন্ধন</h2>
-<form onSubmit={apply}>
-<input required placeholder="দোকানের নাম" value={shop} onChange={e=>SH(e.target.value)}/>
-<input placeholder="মালিকের নাম" value={contact} onChange={e=>C(e.target.value)}/>
-<input placeholder="মোবাইল নম্বর" value={phone} onChange={e=>PH(e.target.value)}/>
-<button>আবেদন জমা দিন</button>
-</form>
-</section>
-
-<section className="panel">
-<h2>পণ্য জমা দিন</h2>
-<form onSubmit={add}>
-<input required placeholder="পণ্যের নাম" value={title} onChange={e=>T(e.target.value)}/>
-<input required type="number" min="0" placeholder="দাম (টাকা)" value={price} onChange={e=>PP(e.target.value)}/>
-<select value={category} onChange={e=>CA(e.target.value)}>
-<option>খাবার ও মিষ্টি</option>
-<option>বাইক পার্টস</option>
-<option>বাইক সার্ভিসিং</option>
-<option>অন্যান্য</option>
-</select>
-<textarea placeholder="বিবরণ" value={desc} onChange={e=>D(e.target.value)}/>
-<button>অনুমোদনের জন্য জমা দিন</button>
-</form>
-</section>
-</>}
-
-{admin&&<section className="panel">('root')).render(<App/>)
