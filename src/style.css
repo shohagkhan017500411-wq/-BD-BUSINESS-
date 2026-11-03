@@ -1,0 +1,114 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f4f6f8;
+  color: #222;
+}
+
+header {
+  background: #087b45;
+  color: white;
+  padding: 22px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+}
+
+header b {
+  font-size: 25px;
+}
+
+main {
+  max-width: 850px;
+  margin: auto;
+  padding: 15px;
+}
+
+.hero {
+  background: #e0f5e9;
+  padding: 28px 15px;
+  text-align: center;
+  border-radius: 14px;
+  margin-bottom: 20px;
+}
+
+.hero h1 {
+  color: #087b45;
+}
+
+.panel {
+  background: white;
+  padding: 18px;
+  margin: 18px 0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px #0001;
+}
+
+input, select, textarea {
+  width: 100%;
+  padding: 13px;
+  margin: 7px 0;
+  border: 1px solid #ccc;
+  border-radius: 7px;
+  font-size: 16px;
+}
+
+button {
+  background: #087b45;
+  color: white;
+  border: none;
+  padding: 12px 17px;
+  border-radius: 7px;
+  margin: 5px;
+  cursor: pointer;
+}
+
+button.alt {
+  background: #2765ad;
+}
+
+button.red {
+  background: #c0392b;
+}
+
+.products {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+article {
+  background: white;
+  padding: 15px;
+  margin: 10px 0;
+  border-radius: 10px;
+  box-shadow: 0 2px 7px #0001;
+}
+
+.product strong {
+  color: #087b45;
+  font-size: 21px;
+}
+
+.message {
+  background: #e0f5e9;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.hint {
+  color: #666;
+  font-size: 13px;
+}
+
+footer {
+  background: #087b45;
+  color: white;
+  text-align: center;
+  padding: 20px;
+}
