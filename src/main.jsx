@@ -1,4 +1,4 @@
-import React, {useEffect,useState} from 'react'; (){
+import React, {useEffect,useState} from 'react';
   if(!db){
     M('Supabase সংযোগ পাওয়া যায়নি');
     return;
