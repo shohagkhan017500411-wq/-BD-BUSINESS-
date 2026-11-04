@@ -11,6 +11,8 @@ function App() {
   const [session, S] = useState(null);
   const [email, E] = useState('');
   const [password, P] = useState('');
+  const [newPassword, NP] = useState('');
+  const [recoveryMode, RM] = useState(false);
   const [products, PR] = useState([]);
   const [admin, A] = useState(false);
   const [apps, AP] = useState([]);
@@ -42,6 +44,8 @@ function App() {
   async function check(u) {
     if (!db || !u) {
       A(false);
+      AP([]);
+      PN([]);
       return;
     }
 
@@ -75,8 +79,13 @@ function App() {
     });
 
     const { data: { subscription } } =
-      db.auth.onAuthStateChange((_event, s) => {
+      db.auth.onAuthStateChange((event, s) => {
         S(s);
+
+        if (event === 'PASSWORD_RECOVERY') {
+          RM(true);
+        }
+
         check(s?.user);
       });
 
@@ -84,45 +93,52 @@ function App() {
   }, []);
 
   async function signup() {
-    try {
-      if (!db) {
-        M('Supabase সংযোগ পাওয়া যায়নি।');
-        return;
-      }
+    if (!db) return M('Supabase সংযোগ পাওয়া যায়নি।');
+    if (!email || !password) return M('ইমেইল ও পাসওয়ার্ড দিন।');
+    if (password.length < 6) return M('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।');
 
-      if (!email || !password) {
-        M('ইমেইল ও পাসওয়ার্ড দিন।');
-        return;
-      }
-
-      if (password.length < 6) {
-        M('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।');
-        return;
-      }
-
-      const r = await db.auth.signUp({ email, password });
-
-      if (r.error) M(r.error.message);
-      else M('অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল যাচাই করুন।');
-    } catch (e) {
-      M('সমস্যা হয়েছে: ' + e.message);
-    }
+    const r = await db.auth.signUp({ email, password });
+    M(r.error ? r.error.message : 'অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল যাচাই করুন।');
   }
 
   async function login() {
-    try {
-      if (!db) {
-        M('Supabase সংযোগ পাওয়া যায়নি।');
-        return;
-      }
+    if (!db) return M('Supabase সংযোগ পাওয়া যায়নি।');
 
-      const r = await db.auth.signInWithPassword({
-        email, password
-      });
+    const r = await db.auth.signInWithPassword({
+      email,
+      password
+    });
 
-      M(r.error ? r.error.message : 'লগইন হয়েছে।');
-    } catch (e) {
-      M('সমস্যা হয়েছে: ' + e.message);
+    M(r.error ? r.error.message : 'লগইন হয়েছে।');
+  }
+
+  async function forgotPassword() {
+    if (!db) return M('Supabase সংযোগ পাওয়া যায়নি।');
+    if (!email) return M('আগে ইমেইল লিখুন।');
+
+    const r = await db.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin
+    });
+
+    M(r.error ? r.error.message : 'পাসওয়ার্ড পরিবর্তনের ইমেইল পাঠানো হয়েছে।');
+  }
+
+  async function updatePassword() {
+    if (!db) return M('Supabase সংযোগ পাওয়া যায়নি।');
+    if (newPassword.length < 6) {
+      return M('নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের দিন।');
+    }
+
+    const r = await db.auth.updateUser({
+      password: newPassword
+    });
+
+    if (r.error) {
+      M(r.error.message);
+    } else {
+      NP('');
+      RM(false);
+      M('পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে।');
     }
   }
 
@@ -162,8 +178,8 @@ function App() {
     }).eq('id', id);
 
     M(r.error?.message || 'পর্যালোচনা সম্পন্ন হয়েছে।');
-    check(session.user);
-    load();
+    await check(session.user);
+    await load();
   }
 
   return (
@@ -182,43 +198,62 @@ function App() {
           </p>
         </section>
 
-        <section className="panel">
-          <h2>অ্যাকাউন্ট</h2>
+        {recoveryMode ? (
+          <section className="panel">
+            <h2>নতুন পাসওয়ার্ড সেট করুন</h2>
+            <input
+              type="password"
+              placeholder="নতুন পাসওয়ার্ড"
+              value={newPassword}
+              onChange={e => NP(e.target.value)}
+            />
+            <button type="button" onClick={updatePassword}>
+              পাসওয়ার্ড পরিবর্তন
+            </button>
+          </section>
+        ) : (
+          <section className="panel">
+            <h2>অ্যাকাউন্ট</h2>
 
-          {session ? (
-            <>
-              <p>{session.user.email}</p>
-              <button type="button" onClick={() => db.auth.signOut()}>
-                লগআউট
-              </button>
-            </>
-          ) : (
-            <>
-              <input
-                placeholder="ইমেইল"
-                value={email}
-                onChange={e => E(e.target.value)}
-              />
+            {session ? (
+              <>
+                <p>{session.user.email}</p>
+                <button type="button" onClick={() => db.auth.signOut()}>
+                  লগআউট
+                </button>
+              </>
+            ) : (
+              <>
+                <input
+                  placeholder="ইমেইল"
+                  value={email}
+                  onChange={e => E(e.target.value)}
+                />
 
-              <input
-                type="password"
-                placeholder="পাসওয়ার্ড"
-                value={password}
-                onChange={e => P(e.target.value)}
-              />
+                <input
+                  type="password"
+                  placeholder="পাসওয়ার্ড"
+                  value={password}
+                  onChange={e => P(e.target.value)}
+                />
 
-              <button type="button" onClick={login}>
-                লগইন
-              </button>
+                <button type="button" onClick={login}>
+                  লগইন
+                </button>
 
-              <button type="button" className="alt" onClick={signup}>
-                নতুন অ্যাকাউন্ট
-              </button>
-            </>
-          )}
-        </section>
+                <button type="button" className="alt" onClick={signup}>
+                  নতুন অ্যাকাউন্ট
+                </button>
 
-        {session && (
+                <button type="button" onClick={forgotPassword}>
+                  পাসওয়ার্ড ভুলে গেছেন?
+                </button>
+              </>
+            )}
+          </section>
+        )}
+
+        {session && !recoveryMode && (
           <>
             <section className="panel">
               <h2>বিক্রেতা নিবন্ধন</h2>
@@ -259,8 +294,8 @@ function App() {
         {admin && (
           <section className="panel">
             <h2>অ্যাডমিন অনুমোদন</h2>
-            <h3>বিক্রেতা</h3>
 
+            <h3>বিক্রেতা</h3>
             {apps.map(x => (
               <article key={x.id}>
                 {x.shop_name} {x.phone}
@@ -313,20 +348,7 @@ function App() {
 
       <footer>© BD BUSINESS</footer>
     </>
-{!session && (
-  <section className="panel">
-    <h2>নতুন পাসওয়ার্ড সেট করুন</h2>
-    <input
-      type="password"
-      placeholder="নতুন পাসওয়ার্ড"
-      value={newPassword}
-      onChange={e => NP(e.target.value)}
-    />
-    <button onClick={updatePassword}>
-      পাসওয়ার্ড পরিবর্তন
-    </button>
-  </section>
-)}  );
- }
+  );
+}
 
 createRoot(document.getElementById('root')).render(<App />);
