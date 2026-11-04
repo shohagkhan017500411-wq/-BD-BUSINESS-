@@ -1,8 +1,1 @@
-[{
-      "relation": ["delegate_permission/common.handle_all_urls"],
-      "target": {
-        "namespace": "android_app",
-        "package_name": "dev.workers.shohagkhan017500411.bd_business.twa",
-        "sha256_cert_fingerprints": ["52:F2:51:FD:F8:5A:E9:69:AF:29:C3:04:AC:34:DB:2F:5D:5E:E1:BA:E1:FF:F2:74:3B:27:35:53:55:AD:76:BD"]
-      }
-    }]
+
