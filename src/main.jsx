@@ -8,345 +8,385 @@ const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const db = url && key ? createClient(url, key) : null;
 
 function App() {
-  const [session, S] = useState(null);
-  const [email, E] = useState('');
-  const [password, P] = useState('');
-  const [newPassword, NP] = useState('');
-  const [recoveryMode, RM] = useState(false);
-  const [products, PR] = useState([]);
-  const [admin, A] = useState(false);
-  const [apps, AP] = useState([]);
-  const [pending, PN] = useState([]);
-  const [msg, M] = useState('');
-  const [shop, SH] = useState('');
-  const [contact, C] = useState('');
-  const [phone, PH] = useState('');
-  const [title, T] = useState('');
-  const [price, PP] = useState('');
-  const [category, CA] = useState('খাবার ও মিষ্টি');
-  const [desc, D] = useState('');
+  const [session, setSession] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [pendingProducts, setPendingProducts] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [cart, setCart] = useState([]);
+  const [message, setMessage] = useState('');
 
-  async function load() {
-    if (!db) {
-      M('Supabase সংযোগ পাওয়া যায়নি।');
-      return;
-    }
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [customer, setCustomer] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [address, setAddress] = useState('');
 
-    const r = await db.from('market_products')
+  const [title, setTitle] = useState('');
+  const [price, setPrice] = useState('');
+  const [category, setCategory] = useState('Food and sweets');
+  const [description, setDescription] = useState('');
+
+  const [sellerName, setSellerName] = useState('');
+  const [sellerPhone, setSellerPhone] = useState('');
+
+  const total = cart.reduce(
+    (sum, item) => sum + item.price * item.quantity,
+    0
+  );
+
+  async function loadProducts() {
+    if (!db) return;
+
+    const { data, error } = await db
+      .from('market_products')
       .select('*')
-      .eq('status', 'approved')
-      .order('created_at', { ascending: false });
+      .eq('status', 'approved');
 
-    if (r.error) M(r.error.message);
-    else PR(r.data || []);
+    if (error) setMessage(error.message);
+    else setProducts(data || []);
   }
 
-  async function check(u) {
-    if (!db || !u) {
-      A(false);
-      AP([]);
-      PN([]);
-      return;
-    }
+  async function checkAdmin(user) {
+    if (!db || !user) return;
 
-    const r = await db.from('admin_users')
+    const { data } = await db
+      .from('admin_users')
       .select('user_id')
-      .eq('user_id', u.id)
+      .eq('user_id', user.id)
       .maybeSingle();
 
-    A(!!r.data);
+    const admin = !!data;
+    setIsAdmin(admin);
 
-    if (r.data) {
-      const a = await db.from('seller_applications')
-        .select('*').eq('status', 'pending');
+    if (admin) {
+      const [a, p, o] = await Promise.all([
+        db.from('seller_applications').select('*').eq('status', 'pending'),
+        db.from('market_products').select('*').eq('status', 'pending'),
+        db.from('market_orders').select('*').order('created_at', { ascending: false })
+      ]);
 
-      const p = await db.from('market_products')
-        .select('*').eq('status', 'pending');
-
-      AP(a.data || []);
-      PN(p.data || []);
+      setApplications(a.data || []);
+      setPendingProducts(p.data || []);
+      setOrders(o.data || []);
     }
   }
 
   useEffect(() => {
-    load();
+    loadProducts();
 
-    if (!db) return;
+    if (!db) {
+      setMessage('Supabase সংযোগ পাওয়া যায়নি');
+      return;
+    }
 
     db.auth.getSession().then(({ data }) => {
-      S(data.session);
-      check(data.session?.user);
+      setSession(data.session);
+      if (data.session) checkAdmin(data.session.user);
     });
 
-    const { data: { subscription } } =
-      db.auth.onAuthStateChange((event, s) => {
-        S(s);
+    const { data: listener } = db.auth.onAuthStateChange(
+      (_event, currentSession) => {
+        setSession(currentSession);
+        if (currentSession) checkAdmin(currentSession.user);
+        else setIsAdmin(false);
+      }
+    );
 
-        if (event === 'PASSWORD_RECOVERY') {
-          RM(true);
-        }
-
-        check(s?.user);
-      });
-
-    return () => subscription.unsubscribe();
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  async function signup() {
-    if (!db) return M('Supabase সংযোগ পাওয়া যায়নি।');
-    if (!email || !password) return M('ইমেইল ও পাসওয়ার্ড দিন।');
-    if (password.length < 6) return M('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।');
-
-    const r = await db.auth.signUp({ email, password });
-    M(r.error ? r.error.message : 'অ্যাকাউন্ট তৈরি হয়েছে। ইমেইল যাচাই করুন।');
-  }
-
-  async function login() {
-    if (!db) return M('Supabase সংযোগ পাওয়া যায়নি।');
-
-    const r = await db.auth.signInWithPassword({
+  async function login(e) {
+    e.preventDefault();
+    const { error } = await db.auth.signInWithPassword({
       email,
       password
     });
-
-    M(r.error ? r.error.message : 'লগইন হয়েছে।');
+    setMessage(error ? error.message : 'লগইন সফল');
   }
 
-  async function forgotPassword() {
-    if (!db) return M('Supabase সংযোগ পাওয়া যায়নি।');
-    if (!email) return M('আগে ইমেইল লিখুন।');
-
-    const r = await db.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin
+  async function signup(e) {
+    e.preventDefault();
+    const { error } = await db.auth.signUp({
+      email,
+      password
     });
-
-    M(r.error ? r.error.message : 'পাসওয়ার্ড পরিবর্তনের ইমেইল পাঠানো হয়েছে।');
+    setMessage(error ? error.message : 'নিবন্ধন সফল');
   }
 
-  async function updatePassword() {
-    if (!db) return M('Supabase সংযোগ পাওয়া যায়নি।');
-    if (newPassword.length < 6) {
-      return M('নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের দিন।');
-    }
-
-    const r = await db.auth.updateUser({
-      password: newPassword
-    });
-
-    if (r.error) {
-      M(r.error.message);
-    } else {
-      NP('');
-      RM(false);
-      M('পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে।');
-    }
+  async function logout() {
+    await db.auth.signOut();
+    setMessage('লগআউট হয়েছে');
   }
 
   async function apply(e) {
     e.preventDefault();
 
-    const r = await db.from('seller_applications').insert({
+    const { error } = await db.from('seller_applications').insert({
       user_id: session.user.id,
-      shop_name: shop,
-      contact_name: contact,
-      phone
+      seller_name: sellerName,
+      phone: sellerPhone,
+      status: 'pending'
     });
 
-    M(r.error?.message || 'বিক্রেতার আবেদন জমা হয়েছে।');
+    setMessage(error ? error.message : 'বিক্রেতার আবেদন জমা হয়েছে');
   }
 
-  async function add(e) {
+  async function submitProduct(e) {
     e.preventDefault();
 
-    const r = await db.from('market_products').insert({
+    const { error } = await db.from('market_products').insert({
       seller_user_id: session.user.id,
       title,
       price: Number(price),
       category,
-      description: desc,
+      description,
       status: 'pending'
     });
 
-    M(r.error?.message || 'পণ্য অনুমোদনের জন্য জমা হয়েছে।');
+    setMessage(error ? error.message : 'পণ্য জমা হয়েছে');
+                                                      }function addToCart(product) {
+    setCart(old => {
+      const found = old.find(item => item.id === product.id);
+      if (found) {
+        return old.map(item =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + 1 }
+            : item
+        );
+      }
+      return [...old, {
+        id: product.id,
+        title: product.title,
+        price: Number(product.price),
+        quantity: 1
+      }];
+    });
+    setMessage('কার্টে যোগ হয়েছে');
   }
 
-  async function review(table, id, status) {
-    const r = await db.from(table).update({
-      status,
-      reviewed_by: session.user.id,
-      reviewed_at: new Date().toISOString()
-    }).eq('id', id);
-
-    M(r.error?.message || 'পর্যালোচনা সম্পন্ন হয়েছে।');
-    await check(session.user);
-    await load();
+  function changeQuantity(id, amount) {
+    setCart(old =>
+      old.map(item =>
+        item.id === id
+          ? { ...item, quantity: item.quantity + amount }
+          : item
+      ).filter(item => item.quantity > 0)
+    );
   }
 
-  return (
+  async function placeOrder(e) {
+    e.preventDefault();
+
+    if (!db || !cart.length) {
+      setMessage('কার্ট খালি অথবা সংযোগ নেই');
+      return;
+    }
+
+    if (!customer.trim() || !customerPhone.trim() || !address.trim()) {
+      setMessage('নাম, ফোন ও ঠিকানা দিন');
+      return;
+    }
+
+    const { error } = await db.from('market_orders').insert({
+      customer_name: customer,
+      phone: customerPhone,
+      address,
+      items: cart,
+      total,
+      status: 'pending'
+    });
+
+    if (error) {
+      setMessage('অর্ডার হয়নি: ' + error.message);
+    } else {
+      setMessage('অর্ডার জমা হয়েছে');
+      setCart([]);
+      setCustomer('');
+      setCustomerPhone('');
+      setAddress('');
+    }
+  }
+
+  async function refreshAdmin() {
+    if (session) await checkAdmin(session.user);
+  }
+
+  async function reviewOrder(id, status) {
+    const { error } = await db
+      .from('market_orders')
+      .update({ status })
+      .eq('id', id);
+
+    setMessage(error ? error.message : 'অর্ডার আপডেট হয়েছে');
+    if (!error) await refreshAdmin();
+  }
+
+  async function reviewProduct(id, status) {
+    const { error } = await db
+      .from('market_products')
+      .update({ status })
+      .eq('id', id);
+
+    setMessage(error ? error.message : 'পণ্য আপডেট হয়েছে');
+    if (!error) {
+      await refreshAdmin();
+      await loadProducts();
+    }
+  }
+
+  async function reviewSeller(id, status) {
+    const { error } = await db
+      .from('seller_applications')
+      .update({ status })
+      .eq('id', id);
+
+    setMessage(error ? error.message : 'আবেদন আপডেট হয়েছে');
+    if (!error) await refreshAdmin();
+      }return (
     <>
-      <header>
-        <b>🛍️ BD BUSINESS</b>
-        <span>খাবার • মিষ্টি • বাইক পার্টস • সার্ভিসিং</span>
+      <header className="panel">
+        <h1>BD BUSINESS</h1>
+        <p>অনলাইন মার্কেটপ্লেস</p>
+        {session && <button onClick={logout}>লগআউট</button>}
       </header>
 
       <main>
-        <section className="hero">
-          <h1>এক জায়গায় সব কেনাকাটা</h1>
-          <p>
-            খাবার ও মিষ্টি এবং মদিনা বাইক সার্ভিসিং
-            সেন্টার এন্ড বাইক গ্যালারি
-          </p>
-        </section>
+        {message && <p className="message">{message}</p>}
 
-        {recoveryMode ? (
+        {!session && (
           <section className="panel">
-            <h2>নতুন পাসওয়ার্ড সেট করুন</h2>
-            <input
-              type="password"
-              placeholder="নতুন পাসওয়ার্ড"
-              value={newPassword}
-              onChange={e => NP(e.target.value)}
-            />
-            <button type="button" onClick={updatePassword}>
-              পাসওয়ার্ড পরিবর্তন
-            </button>
-          </section>
-        ) : (
-          <section className="panel">
-            <h2>অ্যাকাউন্ট</h2>
-
-            {session ? (
-              <>
-                <p>{session.user.email}</p>
-                <button type="button" onClick={() => db.auth.signOut()}>
-                  লগআউট
-                </button>
-              </>
-            ) : (
-              <>
-                <input
-                  placeholder="ইমেইল"
-                  value={email}
-                  onChange={e => E(e.target.value)}
-                />
-
-                <input
-                  type="password"
-                  placeholder="পাসওয়ার্ড"
-                  value={password}
-                  onChange={e => P(e.target.value)}
-                />
-
-                <button type="button" onClick={login}>
-                  লগইন
-                </button>
-
-                <button type="button" className="alt" onClick={signup}>
-                  নতুন অ্যাকাউন্ট
-                </button>
-
-                <button type="button" onClick={forgotPassword}>
-                  পাসওয়ার্ড ভুলে গেছেন?
-                </button>
-              </>
-            )}
+            <h2>লগইন / নিবন্ধন</h2>
+            <form onSubmit={login}>
+              <input type="email" placeholder="ইমেইল"
+                value={email} onChange={e => setEmail(e.target.value)} required />
+              <input type="password" placeholder="পাসওয়ার্ড"
+                value={password} onChange={e => setPassword(e.target.value)} required />
+              <button type="submit">লগইন</button>
+            </form>
+            <button onClick={signup}>নতুন অ্যাকাউন্ট খুলুন</button>
           </section>
         )}
 
-        {session && !recoveryMode && (
+        {session && (
           <>
             <section className="panel">
               <h2>বিক্রেতা নিবন্ধন</h2>
               <form onSubmit={apply}>
-                <input required placeholder="দোকানের নাম"
-                  value={shop} onChange={e => SH(e.target.value)} />
-                <input placeholder="মালিকের নাম"
-                  value={contact} onChange={e => C(e.target.value)} />
+                <input placeholder="বিক্রেতার নাম"
+                  value={sellerName} onChange={e => setSellerName(e.target.value)} required />
                 <input placeholder="মোবাইল নম্বর"
-                  value={phone} onChange={e => PH(e.target.value)} />
-                <button>আবেদন জমা দিন</button>
+                  value={sellerPhone} onChange={e => setSellerPhone(e.target.value)} required />
+                <button type="submit">আবেদন জমা দিন</button>
               </form>
             </section>
 
             <section className="panel">
-              <h2>পণ্য জমা দিন</h2>
-              <form onSubmit={add}>
-                <input required placeholder="পণ্যের নাম"
-                  value={title} onChange={e => T(e.target.value)} />
-                <input required type="number" min="0"
-                  placeholder="দাম (টাকা)"
-                  value={price} onChange={e => PP(e.target.value)} />
-                <select value={category}
-                  onChange={e => CA(e.target.value)}>
-                  <option>খাবার ও মিষ্টি</option>
-                  <option>বাইক পার্টস</option>
-                  <option>বাইক সার্ভিসিং</option>
-                  <option>অন্যান্য</option>
+              <h2>নতুন পণ্য যোগ করুন</h2>
+              <form onSubmit={submitProduct}>
+                <input placeholder="পণ্যের নাম"
+                  value={title} onChange={e => setTitle(e.target.value)} required />
+                <input type="number" placeholder="দাম"
+                  value={price} onChange={e => setPrice(e.target.value)} required />
+                <select value={category} onChange={e => setCategory(e.target.value)}>
+                  <option>Food and sweets</option>
+                  <option>Bike Parts</option>
+                  <option>Bike servicing</option>
+                  <option>Other</option>
                 </select>
-                <textarea placeholder="বিবরণ"
-                  value={desc} onChange={e => D(e.target.value)} />
-                <button>অনুমোদনের জন্য জমা দিন</button>
+                <textarea placeholder="পণ্যের বিবরণ"
+                  value={description} onChange={e => setDescription(e.target.value)} />
+                <button type="submit">পণ্য জমা দিন</button>
               </form>
             </section>
           </>
         )}
 
-        {admin && (
-          <section className="panel">
-            <h2>অ্যাডমিন অনুমোদন</h2>
+        <section className="panel">
+          <h2>আমাদের পণ্য</h2>
+          {products.map(product => (
+            <article className="product" key={product.id}>
+              <h3>{product.title}</h3>
+              <p>{product.category}</p>
+              <p>{product.description}</p>
+              <strong>{product.price} টাকা</strong>
+              <button onClick={() => addToCart(product)}>কার্টে যোগ করুন</button>
+            </article>
+          ))}
+          {!products.length && <p>এখনো কোনো অনুমোদিত পণ্য নেই।</p>}
+        </section>
 
-            <h3>বিক্রেতা</h3>
-            {apps.map(x => (
-              <article key={x.id}>
-                {x.shop_name} {x.phone}
-                <button onClick={() =>
-                  review('seller_applications', x.id, 'approved')}>
-                  অনুমোদন
-                </button>
-                <button className="red" onClick={() =>
-                  review('seller_applications', x.id, 'rejected')}>
-                  বাতিল
-                </button>
+        <section className="panel">
+          <h2>আপনার কার্ট</h2>
+          {cart.map(item => (
+            <div key={item.id}>
+              <p>{item.title} — {item.price} টাকা</p>
+              <button onClick={() => changeQuantity(item.id, -1)}>−</button>
+              {' '}{item.quantity}{' '}
+              <button onClick={() => changeQuantity(item.id, 1)}>+</button>
+            </div>
+          ))}
+          <h3>মোট: {total} টাকা</h3>
+          <form onSubmit={placeOrder}>
+            <input placeholder="আপনার নাম" value={customer}
+              onChange={e => setCustomer(e.target.value)} required />
+            <input placeholder="মোবাইল নম্বর" value={customerPhone}
+              onChange={e => setCustomerPhone(e.target.value)} required />
+            <textarea placeholder="সম্পূর্ণ ঠিকানা" value={address}
+              onChange={e => setAddress(e.target.value)} required />
+            <button type="submit" disabled={!cart.length}>অর্ডার নিশ্চিত করুন</button>
+          </form>
+        </section>
+
+        {isAdmin && (
+          <section className="panel">
+            <h2>অ্যাডমিন প্যানেল</h2>
+            <button onClick={refreshAdmin}>রিফ্রেশ করুন</button>
+
+            <h3>গ্রাহকের অর্ডার</h3>
+            {orders.map(order => (
+              <article className="product" key={order.id}>
+                <p>নাম: {order.customer_name}</p>
+                <p>ফোন: {order.phone}</p>
+                <p>ঠিকানা: {order.address}</p>
+                <p>পণ্য: {JSON.stringify(order.items)}</p>
+                <p>মোট: {order.total} টাকা</p>
+                <p>অবস্থা: {order.status}</p>
+                {order.status === 'pending' && (
+                  <>
+                    <button onClick={() => reviewOrder(order.id, 'approved')}>Approve</button>
+                    <button onClick={() => reviewOrder(order.id, 'rejected')}>Reject</button>
+                  </>
+                )}
               </article>
             ))}
 
-            <h3>পণ্য</h3>
-            {pending.map(x => (
-              <article key={x.id}>
-                {x.title} ৳{x.price}
-                <button onClick={() =>
-                  review('market_products', x.id, 'approved')}>
-                  অনুমোদন
-                </button>
-                <button className="red" onClick={() =>
-                  review('market_products', x.id, 'rejected')}>
-                  বাতিল
-                </button>
+            <h3>বিক্রেতার আবেদন</h3>
+            {applications.map(item => (
+              <article className="product" key={item.id}>
+                <p>{item.seller_name} — {item.phone}</p>
+                <button onClick={() => reviewSeller(item.id, 'approved')}>Approve</button>
+                <button onClick={() => reviewSeller(item.id, 'rejected')}>Reject</button>
+              </article>
+            ))}
+
+            <h3>পণ্যের অনুমোদন</h3>
+            {pendingProducts.map(item => (
+              <article className="product" key={item.id}>
+                <p>{item.title} — {item.price} টাকা</p>
+                <button onClick={() => reviewProduct(item.id, 'approved')}>Approve</button>
+                <button onClick={() => reviewProduct(item.id, 'rejected')}>Reject</button>
               </article>
             ))}
           </section>
         )}
-
-        <h2>অনুমোদিত পণ্য</h2>
-        <div className="products">
-          {products.map(p => (
-            <article className="product" key={p.id}>
-              <b>{p.title}</b>
-              <p>{p.category}</p>
-              <strong>৳{p.price}</strong>
-              <p>{p.description}</p>
-            </article>
-          ))}
-        </div>
-
-        {msg && <p className="message">{msg}</p>}
-
-        <p className="hint">
-          ছবি, কার্ট, অর্ডার, ডেলিভারি ও পেমেন্ট এখনো যুক্ত হয়নি।
-        </p>
       </main>
 
-      <footer>© BD BUSINESS</footer>
+      <footer className="panel">
+        <p>BD BUSINESS © 2026</p>
+        <p>মদিনা বাইক সার্ভিসিং সেন্টার এন্ড বাইক গ্যালারি</p>
+      </footer>
     </>
   );
 }
