@@ -1,0 +1,11 @@
+{
+  "id": "/",
+  "name": "BD BUSINESS",
+  "short_name": "BD BUSINESS",
+  "description": "অনলাইনে খাবার ও মিষ্টি কেনাকাটার দোকান।",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#073b32"
+}
