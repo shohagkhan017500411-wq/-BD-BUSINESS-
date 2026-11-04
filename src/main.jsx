@@ -6,74 +6,89 @@ const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const db = url && key ? createClient(url, key) : null;
 
+const BKASH = '01793798125';
+const WHATSAPP = '01750041156';
+const FACEBOOK = 'https://www.facebook.com/share/1DpyTMXEc6/';
+
+const products = [
+  {
+    id: 1,
+    title: 'মিষ্টি',
+    image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600',
+    options: [{ size: '৫০০ গ্রাম', price: 280 }, { size: '১ কেজি', price: 550 }]
+  },
+  {
+    id: 2,
+    title: 'রসমালাই',
+    image: 'https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=600',
+    options: [{ size: '৫০০ গ্রাম', price: 280 }, { size: '১ কেজি', price: 550 }]
+  },
+  {
+    id: 3,
+    title: 'সন্দেশ',
+    image: 'https://images.unsplash.com/photo-1589119908995-c6837fa14848?w=600',
+    options: [{ size: '৫০০ গ্রাম', price: 180 }, { size: '১ কেজি', price: 350 }]
+  },
+  {
+    id: 4,
+    title: 'দেশি লাল চিনি',
+    image: 'https://images.unsplash.com/photo-1581441363689-1f3c3c414635?w=600',
+    options: [{ size: '৫০০ গ্রাম', price: 135 }, { size: '১ কেজি', price: 260 }]
+  },
+  {
+    id: 5,
+    title: 'বাদামের খাজা',
+    image: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=600',
+    options: [{ size: '২৫০ গ্রাম', price: 130 }, { size: '৫০০ গ্রাম', price: 250 }]
+  },
+  {
+    id: 6,
+    title: 'রেশমি সনপাপড়ি',
+    image: 'https://images.unsplash.com/photo-1605197584325-3b1e3e9e4f6b?w=600',
+    options: [{ size: '২৫০ গ্রাম', price: 130 }, { size: '৫০০ গ্রাম', price: 250 }]
+  },
+  {
+    id: 7,
+    title: 'খাঁটি নারিকেল তেল',
+    image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=600',
+    options: [{ size: '২৫০ গ্রাম', price: 650 }, { size: '৫০০ গ্রাম', price: 1200 }]
+  }
+];
+
 function App() {
+  const [page, setPage] = useState('home');
+  const [cart, setCart] = useState([]);
+  const [message, setMessage] = useState('');
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [products, setProducts] = useState([]);
-  const [cart, setCart] = useState([]);
-  const [page, setPage] = useState('home');
-  const [category, setCategory] = useState('সব');
-  const [search, setSearch] = useState('');
-  const [message, setMessage] = useState('');
+  const [orders, setOrders] = useState([]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const [sellerName, setSellerName] = useState('');
-  const [phone, setPhone] = useState('');
-
-  const [title, setTitle] = useState('');
-  const [price, setPrice] = useState('');
-  const [description, setDescription] = useState('');
-  const [image, setImage] = useState('');
-  const [productCategory, setProductCategory] = useState('Food and sweets');
-
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [address, setAddress] = useState('');
-
-  const [pendingProducts, setPendingProducts] = useState([]);
-  const [pendingSellers, setPendingSellers] = useState([]);
-  const [orders, setOrders] = useState([]);
+  const [transactionId, setTransactionId] = useState('');
 
   function notify(text) {
     setMessage(text);
     window.setTimeout(() => setMessage(''), 3500);
   }
 
-  async function loadProducts() {
-    if (!db) return;
-
-    const { data, error } = await db
-      .from('market_products')
-      .select('*')
-      .eq('status', 'approved')
-      .order('id', { ascending: false });
-
-    if (error) {
-      notify(error.message);
-      return;
-    }
-
-    setProducts(data || []);
-  }
-
   async function checkUser() {
     if (!db) return;
-
     const { data } = await db.auth.getSession();
-    const currentUser = data?.session?.user || null;
+    const current = data?.session?.user || null;
+    setUser(current);
 
-    setUser(currentUser);
-
-    if (currentUser) {
-      const { data: admin, error } = await db
+    if (current) {
+      const { data: admin } = await db
         .from('admin_users')
         .select('user_id')
-        .eq('user_id', currentUser.id)
+        .eq('user_id', current.id)
         .maybeSingle();
-
-      setIsAdmin(!error && !!admin);
+      setIsAdmin(!!admin);
     } else {
       setIsAdmin(false);
     }
@@ -84,166 +99,93 @@ function App() {
       notify('Supabase সংযোগ পাওয়া যায়নি।');
       return;
     }
-
     checkUser();
-    loadProducts();
-
     const { data: listener } = db.auth.onAuthStateChange(() => {
       checkUser();
     });
-
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  async function signUp() {
-    if (!db) return notify('Supabase সংযোগ নেই।');
-    if (!email || !password) return notify('ইমেইল ও পাসওয়ার্ড দিন।');
-    if (password.length < 6) {
-      return notify('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের দিন।');
-    }
-
-    const { error } = await db.auth.signUp({ email, password });
-
-    if (error) return notify(error.message);
-
-    notify('রেজিস্ট্রেশন হয়েছে। ইমেইল যাচাই করতে হতে পারে।');
-  }
-
   async function signIn() {
     if (!db) return notify('Supabase সংযোগ নেই।');
-
-    const { error } = await db.auth.signInWithPassword({
-      email,
-      password
-    });
-
+    const { error } = await db.auth.signInWithPassword({ email, password });
     if (error) return notify(error.message);
-
     await checkUser();
     notify('লগইন সফল হয়েছে।');
+    setPage('home');
   }
 
   async function signOut() {
     if (!db) return;
-
-    const { error } = await db.auth.signOut();
-
-    if (error) return notify(error.message);
-
+    await db.auth.signOut();
     setUser(null);
     setIsAdmin(false);
     setPage('home');
     notify('লগআউট হয়েছে।');
   }
 
-  async function applySeller() {
-    if (!db || !user) return notify('আগে লগইন করুন।');
-    if (!sellerName || !phone) {
-      return notify('নাম ও ফোন নম্বর দিন।');
-    }
-
-    const { error } = await db.from('seller_applications').insert({
-      user_id: user.id,
-      seller_name: sellerName,
-      phone,
-      status: 'pending'
-    });
-
-    if (error) return notify(error.message);
-
-    setSellerName('');
-    setPhone('');
-    notify('সেলার আবেদন জমা হয়েছে।');
-  }
-
-  async function submitProduct() {
-    if (!db || !user) return notify('আগে লগইন করুন।');
-
-    if (!title.trim() || !price || Number(price) <= 0) {
-      return notify('পণ্যের নাম ও সঠিক দাম দিন।');
-    }
-
-    if (image && !/^https?:\/\//i.test(image)) {
-      return notify('ছবির সঠিক URL দিন।');
-    }
-
-    const { error } = await db.from('market_products').insert({
-      seller_user_id: user.id,
-      title: title.trim(),
-      price: Number(price),
-      category: productCategory,
-      description,
-      image_url: image.trim(),
-      status: 'pending'
-    });
-
-    if (error) return notify(error.message);
-
-    setTitle('');
-    setPrice('');
-    setDescription('');
-    setImage('');
-
-    notify('পণ্য অনুমোদনের জন্য জমা হয়েছে।');
-  }
-
-  function addToCart(product) {
+  function addToCart(product, option) {
+    const cartId = `${product.id}-${option.size}`;
     setCart(old => {
-      const found = old.find(item => item.id === product.id);
-
+      const found = old.find(item => item.cartId === cartId);
       if (found) {
         return old.map(item =>
-          item.id === product.id
+          item.cartId === cartId
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
       }
-
-      return [...old, { ...product, quantity: 1 }];
+      return [...old, {
+        cartId,
+        id: product.id,
+        title: product.title,
+        size: option.size,
+        price: option.price,
+        quantity: 1
+      }];
     });
-
     notify('কার্টে যোগ হয়েছে।');
   }
 
-  function changeQuantity(id, amount) {
-    setCart(old =>
-      old
-        .map(item =>
-          item.id === id
-            ? { ...item, quantity: item.quantity + amount }
-            : item
-        )
-        .filter(item => item.quantity > 0)
+  function changeQuantity(cartId, amount) {
+    setCart(old => old
+      .map(item => item.cartId === cartId
+        ? { ...item, quantity: item.quantity + amount }
+        : item)
+      .filter(item => item.quantity > 0)
     );
   }
 
   const total = cart.reduce(
-    (sum, item) => sum + Number(item.price) * item.quantity,
-    0
+    (sum, item) => sum + item.price * item.quantity, 0
   );
 
   async function placeOrder() {
     if (!db) return notify('Supabase সংযোগ নেই।');
     if (!cart.length) return notify('কার্ট খালি।');
-
-    if (!customerName || !customerPhone || !address) {
-      return notify('নাম, ফোন ও ঠিকানা পূরণ করুন।');
+    if (!customerName.trim() || !customerPhone.trim() ||
+        !address.trim() || !transactionId.trim()) {
+      return notify('সব তথ্য পূরণ করুন।');
     }
 
     const items = cart.map(item => ({
-      id: item.id,
       title: item.title,
-      price: Number(item.price),
+      size: item.size,
+      price: item.price,
       quantity: item.quantity
     }));
 
     const { error } = await db.from('market_orders').insert({
-      customer_name: customerName,
-      phone: customerPhone,
-      address,
+      customer_name: customerName.trim(),
+      phone: customerPhone.trim(),
+      address: address.trim(),
       items,
       total,
-      status: 'pending'
+      status: 'pending',
+      payment_method: 'bKash Personal',
+      payment_number: BKASH,
+      transaction_id: transactionId.trim(),
+      payment_status: 'pending_verification'
     });
 
     if (error) return notify(error.message);
@@ -252,90 +194,38 @@ function App() {
     setCustomerName('');
     setCustomerPhone('');
     setAddress('');
+    setTransactionId('');
     setPage('home');
-
-    notify('অর্ডার জমা হয়েছে।');
+    notify('অর্ডার জমা হয়েছে। পেমেন্ট যাচাইয়ের অপেক্ষায় আছে।');
   }
 
-  async function loadAdmin() {
+  async function loadOrders() {
     if (!db || !isAdmin) return;
-
-    const [p, s, o] = await Promise.all([
-      db.from('market_products').select('*').eq('status', 'pending'),
-      db.from('seller_applications').select('*').eq('status', 'pending'),
-      db.from('market_orders').select('*').order('id', { ascending: false })
-    ]);
-
-    if (p.error) notify(p.error.message);
-    if (s.error) notify(s.error.message);
-    if (o.error) notify(o.error.message);
-
-    setPendingProducts(p.data || []);
-    setPendingSellers(s.data || []);
-    setOrders(o.data || []);
-  }
-
-  async function approveProduct(id, status) {
-    if (!db || !isAdmin) return;
-
-    const { error } = await db
-      .from('market_products')
-      .update({ status })
-      .eq('id', id);
-
+    const { data, error } = await db
+      .from('market_orders')
+      .select('*')
+      .order('id', { ascending: false });
     if (error) return notify(error.message);
-
-    notify('পণ্যের অবস্থা পরিবর্তন হয়েছে।');
-    await loadAdmin();
-    await loadProducts();
+    setOrders(data || []);
   }
 
-  async function approveSeller(id, status) {
+  async function updateOrder(id, values) {
     if (!db || !isAdmin) return;
-
-    const { error } = await db
-      .from('seller_applications')
-      .update({ status })
-      .eq('id', id);
-
-    if (error) return notify(error.message);
-
-    notify('সেলারের অবস্থা পরিবর্তন হয়েছে।');
-    await loadAdmin();
-  }
-
-  async function updateOrder(id, status) {
-    if (!db || !isAdmin) return;
-
     const { error } = await db
       .from('market_orders')
-      .update({ status })
+      .update(values)
       .eq('id', id);
-
     if (error) return notify(error.message);
-
-    notify('অর্ডারের অবস্থা পরিবর্তন হয়েছে।');
-    await loadAdmin();
+    notify('পরিবর্তন সংরক্ষণ হয়েছে।');
+    loadOrders();
   }
 
   useEffect(() => {
-    if (page === 'admin' && isAdmin) {
-      loadAdmin();
-    }
+    if (page === 'admin' && isAdmin) loadOrders();
   }, [page, isAdmin]);
 
-  const filteredProducts = products.filter(product => {
-    const matchesCategory =
-      category === 'সব' || product.category === category;
-
-    const term = search.trim().toLowerCase();
-
-    const matchesSearch =
-      (product.title || '').toLowerCase().includes(term) ||
-      (product.description || '').toLowerCase().includes(term);
-
-    return matchesCategory && matchesSearch;
-  });
+  const whatsappLink =
+    `https://wa.me/88${WHATSAPP}?text=${encodeURIComponent('BD BUSINESS-এ স্বাগতম। পণ্য সম্পর্কে জানতে চাই।')}`;
 
   return (
     <>
@@ -350,18 +240,15 @@ function App() {
         header {
           background: #073b32;
           color: white;
-          padding: 22px 12px;
+          padding: 25px 12px;
           text-align: center;
         }
-        header h1 {
-          margin: 0 0 7px;
-          font-size: 29px;
-        }
+        header h1 { margin: 0 0 8px; font-size: 30px; }
         nav {
           display: flex;
           flex-wrap: wrap;
           justify-content: center;
-          gap: 7px;
+          gap: 6px;
           padding: 12px;
           background: white;
         }
@@ -376,11 +263,7 @@ function App() {
         }
         button.secondary { background: #34495e; }
         button.danger { background: #bd3434; }
-        main {
-          max-width: 1000px;
-          margin: auto;
-          padding: 15px;
-        }
+        main { max-width: 1000px; margin: auto; padding: 15px; }
         .card {
           background: white;
           border-radius: 12px;
@@ -388,7 +271,12 @@ function App() {
           margin: 12px 0;
           box-shadow: 0 2px 8px #00000012;
         }
-        input, textarea, select {
+        .grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+          gap: 12px;
+        }
+        input, textarea {
           display: block;
           width: 100%;
           padding: 12px;
@@ -397,12 +285,7 @@ function App() {
           margin: 9px 0 14px;
           font-size: 16px;
         }
-        textarea { min-height: 80px; }
-        .grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-          gap: 12px;
-        }
+        textarea { min-height: 75px; }
         .product-image {
           width: 100%;
           height: 180px;
@@ -410,15 +293,7 @@ function App() {
           border-radius: 9px;
           background: #eee;
         }
-        .price {
-          color: #087b58;
-          font-size: 21px;
-          font-weight: bold;
-        }
-        .muted {
-          color: #666;
-          font-size: 14px;
-        }
+        .price { color: #087b58; font-size: 19px; font-weight: bold; }
         .message {
           position: sticky;
           top: 0;
@@ -427,6 +302,7 @@ function App() {
           text-align: center;
           z-index: 5;
         }
+        h2 { color: #073b32; }
         footer {
           text-align: center;
           padding: 25px;
@@ -434,410 +310,180 @@ function App() {
           color: white;
           margin-top: 25px;
         }
-        h2 { color: #073b32; }
+        a { color: inherit; }
       `}</style>
 
       <header>
         <h1>BD BUSINESS</h1>
-        <div>খাবার • মিষ্টি • বাইক পার্টস • সার্ভিসিং</div>
+        <div>খাঁটি খাবার ও মিষ্টির অনলাইন দোকান</div>
       </header>
 
       {message && <div className="message">{message}</div>}
 
       <nav>
         <button onClick={() => setPage('home')}>হোম</button>
-
-        <button onClick={() => {
-          setCategory('Food and sweets');
-          setPage('home');
-        }}>
-          খাবার
-        </button>
-
-        <button onClick={() => {
-          setCategory('Bike Parts');
-          setPage('home');
-        }}>
-          বাইক পার্টস
-        </button>
-
-        <button onClick={() => {
-          setCategory('Bike servicing');
-          setPage('home');
-        }}>
-          বাইক সার্ভিসিং
-        </button>
-
-        <button onClick={() => setPage('cart')}>
-          কার্ট ({cart.length})
-        </button>
-
-        <button onClick={() => setPage('seller')}>সেলার</button>
-        <button onClick={() => setPage('add')}>পণ্য যোগ</button>
-
-        {user ? (
-          <button className="secondary" onClick={signOut}>
-            লগআউট
-          </button>
-        ) : (
-          <button onClick={() => setPage('login')}>
-            লগইন
-          </button>
-        )}
-
+        <button onClick={() => setPage('cart')}>কার্ট ({cart.length})</button>
+        <button onClick={() => setPage('login')}>অ্যাডমিন লগইন</button>
         {isAdmin && (
-          <button className="secondary" onClick={() => setPage('admin')}>
-            অ্যাডমিন
-          </button>
+          <button onClick={() => setPage('admin')}>অ্যাডমিন অর্ডার</button>
         )}
+        {user && <button className="secondary" onClick={signOut}>লগআউট</button>}
       </nav>
 
       <main>
         {page === 'home' && (
           <>
             <section className="card">
-              <h2>BD BUSINESS-এ স্বাগতম</h2>
-              <p>
-                খাবার ও মিষ্টি, বাইক পার্টস এবং সার্ভিসিংয়ের পণ্য খুঁজুন।
-              </p>
-              <h3>মদিনা বাইক সার্ভিসিং সেন্টার এন্ড বাইক গ্যালারি</h3>
+              <h2>স্বাগতম BD BUSINESS-এ</h2>
+              <p>আমাদের খাবার ও মিষ্টির পণ্য বেছে নিন।</p>
+              <p>পছন্দের পণ্য কার্টে যোগ করে অর্ডার করুন।</p>
             </section>
 
-            <section className="card">
-              <h2>পণ্য খুঁজুন</h2>
-
-              <input
-                type="search"
-                placeholder="পণ্যের নাম লিখুন..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-
-              <button onClick={() => setCategory('সব')}>
-                সব পণ্য
-              </button>
-
-              <button onClick={() => setCategory('Food and sweets')}>
-                খাবার ও মিষ্টি
-              </button>
-
-              <button onClick={() => setCategory('Bike Parts')}>
-                বাইক পার্টস
-              </button>
-
-              <button onClick={() => setCategory('Bike servicing')}>
-                বাইক সার্ভিসিং
-              </button>
-            </section>
-
-            <h2>অনুমোদিত পণ্য</h2>
-
+            <h2>আমাদের পণ্য</h2>
             <div className="grid">
-              {filteredProducts.map(product => (
+              {products.map(product => (
                 <div className="card" key={product.id}>
                   <img
                     className="product-image"
-                    src={
-                      product.image_url ||
-                      'https://placehold.co/600x400?text=BD+BUSINESS'
-                    }
+                    src={product.image}
                     alt={product.title}
                     onError={e => {
                       e.currentTarget.src =
-                        'https://placehold.co/600x400?text=No+Image';
+                        'https://placehold.co/600x400?text=BD+BUSINESS';
                     }}
                   />
-
                   <h3>{product.title}</h3>
-                  <div className="price">৳ {product.price}</div>
-                  <p>{product.category}</p>
-                  <p className="muted">{product.description}</p>
-
-                  <button onClick={() => addToCart(product)}>
-                    কার্টে যোগ করুন
-                  </button>
+                  {product.options.map(option => (
+                    <div key={option.size}>
+                      <p className="price">
+                        {option.size} — ৳{option.price}
+                      </p>
+                      <button onClick={() => addToCart(product, option)}>
+                        কার্টে যোগ করুন
+                      </button>
+                    </div>
+                  ))}
                 </div>
               ))}
             </div>
-
-            {!filteredProducts.length && (
-              <p className="card">কোনো পণ্য পাওয়া যায়নি।</p>
-            )}
           </>
+        )}
+
+        {page === 'cart' && (
+          <section className="card">
+            <h2>তোমার কার্ট</h2>
+            {!cart.length && <p>কার্ট খালি।</p>}
+
+            {cart.map(item => (
+              <div className="card" key={item.cartId}>
+                <b>{item.title} — {item.size}</b>
+                <p>৳{item.price} × {item.quantity}</p>
+                <button onClick={() => changeQuantity(item.cartId, -1)}>−</button>
+                <button onClick={() => changeQuantity(item.cartId, 1)}>+</button>
+              </div>
+            ))}
+
+            <h2>মোট: ৳{total}</h2>
+
+            {cart.length > 0 && (
+              <>
+                <h2>বিকাশ পেমেন্ট</h2>
+                <p>বিকাশ Personal নম্বর:</p>
+                <h2>{BKASH}</h2>
+                <button className="secondary"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(BKASH);
+                    notify('বিকাশ নম্বর কপি হয়েছে।');
+                  }}>
+                  নম্বর কপি করুন
+                </button>
+                <p>উপরের নম্বরে মোট টাকা পাঠিয়ে Transaction ID লিখুন।</p>
+
+                <h2>অর্ডারের তথ্য</h2>
+                <input
+                  placeholder="ক্রেতার নাম"
+                  value={customerName}
+                  onChange={e => setCustomerName(e.target.value)}
+                />
+                <input
+                  placeholder="ফোন নম্বর"
+                  value={customerPhone}
+                  onChange={e => setCustomerPhone(e.target.value)}
+                />
+                <textarea
+                  placeholder="ডেলিভারির ঠিকানা"
+                  value={address}
+                  onChange={e => setAddress(e.target.value)}
+                />
+                <input
+                  placeholder="বিকাশ Transaction ID"
+                  value={transactionId}
+                  onChange={e => setTransactionId(e.target.value)}
+                />
+                <button onClick={placeOrder}>অর্ডার জমা দিন</button>
+              </>
+            )}
+          </section>
         )}
 
         {page === 'login' && (
           <section className="card">
-            <h2>লগইন / রেজিস্ট্রেশন</h2>
-
+            <h2>অ্যাডমিন লগইন</h2>
             <input
               type="email"
-              placeholder="ইমেইল"
+              placeholder="অ্যাডমিন ইমেইল"
               value={email}
               onChange={e => setEmail(e.target.value)}
             />
-
             <input
               type="password"
               placeholder="পাসওয়ার্ড"
               value={password}
               onChange={e => setPassword(e.target.value)}
             />
-
             <button onClick={signIn}>লগইন</button>
-            <button className="secondary" onClick={signUp}>
-              নতুন অ্যাকাউন্ট খুলুন
-            </button>
-          </section>
-        )}
-
-        {page === 'seller' && (
-          <section className="card">
-            <h2>সেলার আবেদন</h2>
-
-            {!user ? (
-              <p>আগে লগইন করুন।</p>
-            ) : (
-              <>
-                <input
-                  placeholder="সেলারের নাম"
-                  value={sellerName}
-                  onChange={e => setSellerName(e.target.value)}
-                />
-
-                <input
-                  placeholder="ফোন নম্বর"
-                  value={phone}
-                  onChange={e => setPhone(e.target.value)}
-                />
-
-                <button onClick={applySeller}>
-                  আবেদন জমা দিন
-                </button>
-              </>
-            )}
-          </section>
-        )}
-
-        {page === 'add' && (
-          <section className="card">
-            <h2>নতুন পণ্য যোগ করুন</h2>
-
-            {!user ? (
-              <p>আগে লগইন করুন।</p>
-            ) : (
-              <>
-                <input
-                  placeholder="পণ্যের নাম"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                />
-
-                <input
-                  type="number"
-                  placeholder="দাম (টাকা)"
-                  value={price}
-                  onChange={e => setPrice(e.target.value)}
-                />
-
-                <select
-                  value={productCategory}
-                  onChange={e => setProductCategory(e.target.value)}
-                >
-                  <option value="Food and sweets">খাবার ও মিষ্টি</option>
-                  <option value="Bike Parts">বাইক পার্টস</option>
-                  <option value="Bike servicing">বাইক সার্ভিসিং</option>
-                </select>
-
-                <textarea
-                  placeholder="পণ্যের বিবরণ"
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                />
-
-                <input
-                  type="url"
-                  placeholder="ছবির URL"
-                  value={image}
-                  onChange={e => setImage(e.target.value)}
-                />
-
-                <button onClick={submitProduct}>
-                  অনুমোদনের জন্য জমা দিন
-                </button>
-              </>
-            )}
-          </section>
-        )}
-
-        {page === 'cart' && (
-          <section className="card">
-            <h2>আপনার কার্ট</h2>
-
-            {!cart.length && <p>কার্ট খালি।</p>}
-
-            {cart.map(item => (
-              <div className="card" key={item.id}>
-                <b>{item.title}</b>
-                <p>৳ {item.price} × {item.quantity}</p>
-
-                <button onClick={() => changeQuantity(item.id, -1)}>
-                  -
-                </button>
-
-                <button onClick={() => changeQuantity(item.id, 1)}>
-                  +
-                </button>
-              </div>
-            ))}
-
-            <h3>মোট: ৳ {total}</h3>
-
-            {cart.length > 0 && (
-              <>
-                <h2>অর্ডারের তথ্য</h2>
-
-                <input
-                  placeholder="আপনার নাম"
-                  value={customerName}
-                  onChange={e => setCustomerName(e.target.value)}
-                />
-
-                <input
-                  placeholder="ফোন নম্বর"
-                  value={customerPhone}
-                  onChange={e => setCustomerPhone(e.target.value)}
-                />
-
-                <textarea
-                  placeholder="সম্পূর্ণ ঠিকানা"
-                  value={address}
-                  onChange={e => setAddress(e.target.value)}
-                />
-
-                <button onClick={placeOrder}>
-                  অর্ডার জমা দিন
-                </button>
-              </>
-            )}
           </section>
         )}
 
         {page === 'admin' && (
-          <section>
+          <section className="card">
             {!isAdmin ? (
-              <p className="card">অ্যাডমিন অনুমতি প্রয়োজন।</p>
+              <p>অ্যাডমিন অনুমতি প্রয়োজন।</p>
             ) : (
               <>
-                <div className="card">
-                  <h2>অ্যাডমিন প্যানেল</h2>
-                  <button onClick={loadAdmin}>রিফ্রেশ</button>
-                </div>
+                <h2>অর্ডার তালিকা</h2>
+                <button onClick={loadOrders}>রিফ্রেশ</button>
+                {!orders.length && <p>কোনো অর্ডার নেই।</p>}
 
-                <div className="card">
-                  <h2>সেলার আবেদন</h2>
-
-                  {pendingSellers.map(item => (
-                    <div className="card" key={item.id}>
-                      <b>{item.seller_name}</b>
-                      <p>{item.phone}</p>
-
-                      <button onClick={() =>
-                        approveSeller(item.id, 'approved')
-                      }>
-                        অনুমোদন
-                      </button>
-
-                      <button
-                        className="danger"
-                        onClick={() =>
-                          approveSeller(item.id, 'rejected')
-                        }
-                      >
-                        বাতিল
-                      </button>
-                    </div>
-                  ))}
-
-                  {!pendingSellers.length && <p>নতুন আবেদন নেই।</p>}
-                </div>
-
-                <div className="card">
-                  <h2>পণ্য অনুমোদন</h2>
-
-                  {pendingProducts.map(item => (
-                    <div className="card" key={item.id}>
-                      <b>{item.title}</b>
-                      <p>৳ {item.price} | {item.category}</p>
-
-                      {item.image_url && (
-                        <img
-                          className="product-image"
-                          src={item.image_url}
-                          alt={item.title}
-                        />
-                      )}
-
-                      <p>{item.description}</p>
-
-                      <button onClick={() =>
-                        approveProduct(item.id, 'approved')
-                      }>
-                        অনুমোদন
-                      </button>
-
-                      <button
-                        className="danger"
-                        onClick={() =>
-                          approveProduct(item.id, 'rejected')
-                        }
-                      >
-                        বাতিল
-                      </button>
-                    </div>
-                  ))}
-
-                  {!pendingProducts.length && (
-                    <p>অনুমোদনের অপেক্ষায় পণ্য নেই।</p>
-                  )}
-                </div>
-
-                <div className="card">
-                  <h2>অর্ডার তালিকা</h2>
-
-                  {orders.map(order => (
-                    <div className="card" key={order.id}>
-                      <b>{order.customer_name}</b>
-                      <p>ফোন: {order.phone}</p>
-                      <p>ঠিকানা: {order.address}</p>
-                      <p>মোট: ৳ {order.total}</p>
-                      <p>অবস্থা: {order.status}</p>
-
-                      <button onClick={() =>
-                        updateOrder(order.id, 'confirmed')
-                      }>
-                        নিশ্চিত
-                      </button>
-
-                      <button onClick={() =>
-                        updateOrder(order.id, 'delivered')
-                      }>
-                        ডেলিভারি হয়েছে
-                      </button>
-
-                      <button
-                        className="danger"
-                        onClick={() =>
-                          updateOrder(order.id, 'cancelled')
-                        }
-                      >
-                        বাতিল
-                      </button>
-                    </div>
-                  ))}
-
-                  {!orders.length && <p>কোনো অর্ডার নেই।</p>}
-                </div>
+                {orders.map(order => (
+                  <div className="card" key={order.id}>
+                    <h3>{order.customer_name}</h3>
+                    <p>ফোন: {order.phone}</p>
+                    <p>ঠিকানা: {order.address}</p>
+                    <p>মোট: ৳{order.total}</p>
+                    <p>Transaction ID: {order.transaction_id || 'নেই'}</p>
+                    <p>পেমেন্ট অবস্থা: {order.payment_status}</p>
+                    <p>অর্ডার অবস্থা: {order.status}</p>
+                    <b>পণ্য:</b>
+                    {(order.items || []).map((item, index) => (
+                      <p key={index}>
+                        {item.title} ({item.size}) × {item.quantity}
+                      </p>
+                    ))}
+                    <button onClick={() => updateOrder(order.id, {
+                      payment_status: 'verified',
+                      status: 'confirmed'
+                    })}>
+                      পেমেন্ট যাচাই ও অর্ডার নিশ্চিত
+                    </button>
+                    <button className="danger"
+                      onClick={() => updateOrder(order.id, {
+                        status: 'cancelled'
+                      })}>
+                      অর্ডার বাতিল
+                    </button>
+                  </div>
+                ))}
               </>
             )}
           </section>
@@ -845,8 +491,15 @@ function App() {
       </main>
 
       <footer>
-        <b>BD BUSINESS</b>
-        <p>খাবার ও মিষ্টি | বাইক পার্টস | মদিনা বাইক সার্ভিসিং সেন্টার</p>
+        <h3>BD BUSINESS</h3>
+        <p>খাবার ও মিষ্টির অনলাইন দোকান</p>
+        <p><a href={FACEBOOK} target="_blank" rel="noreferrer">
+          আমাদের Facebook Page
+        </a></p>
+        <p><a href={whatsappLink} target="_blank" rel="noreferrer">
+          WhatsApp-এ যোগাযোগ করুন
+        </a></p>
+        <p>WhatsApp: {WHATSAPP}</p>
       </footer>
     </>
   );
