@@ -1,152 +1,156 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
-import './style.css';
 
 const url = import.meta.env.VITE_SUPABASE_URL;
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const db = url && key ? createClient(url, key) : null;
 
 function App() {
-  const [session, setSession] = useState(null);
-  const [products, setProducts] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [applications, setApplications] = useState([]);
-  const [pendingProducts, setPendingProducts] = useState([]);
+  const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
+  const [page, setPage] = useState('home');
+  const [category, setCategory] = useState('সব');
   const [message, setMessage] = useState('');
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [customer, setCustomer] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [address, setAddress] = useState('');
-
+  const [sellerName, setSellerName] = useState('');
+  const [phone, setPhone] = useState('');
   const [title, setTitle] = useState('');
   const [price, setPrice] = useState('');
-  const [category, setCategory] = useState('Food and sweets');
   const [description, setDescription] = useState('');
+  const [productCategory, setProductCategory] = useState('Food and sweets');
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [pendingProducts, setPendingProducts] = useState([]);
+  const [pendingSellers, setPendingSellers] = useState([]);
+  const [orders, setOrders] = useState([]);
 
-  const [sellerName, setSellerName] = useState('');
-  const [sellerPhone, setSellerPhone] = useState('');
-
-  const total = cart.reduce(
-    (sum, item) => sum + item.price * item.quantity,
-    0
-  );
+  const notify = (text) => {
+    setMessage(text);
+    window.setTimeout(() => setMessage(''), 3500);
+  };
 
   async function loadProducts() {
     if (!db) return;
-
     const { data, error } = await db
       .from('market_products')
       .select('*')
-      .eq('status', 'approved');
+      .eq('status', 'approved')
+      .order('id', { ascending: false });
 
-    if (error) setMessage(error.message);
-    else setProducts(data || []);
+    if (error) {
+      notify(error.message);
+      return;
+    }
+    setProducts(data || []);
   }
 
-  async function checkAdmin(user) {
-    if (!db || !user) return;
+  async function checkUser() {
+    if (!db) return;
+    const { data } = await db.auth.getSession();
+    const currentUser = data?.session?.user || null;
+    setUser(currentUser);
 
-    const { data } = await db
-      .from('admin_users')
-      .select('user_id')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    if (currentUser) {
+      const { data: admin } = await db
+        .from('admin_users')
+        .select('user_id')
+        .eq('user_id', currentUser.id)
+        .maybeSingle();
 
-    const admin = !!data;
-    setIsAdmin(admin);
-
-    if (admin) {
-      const [a, p, o] = await Promise.all([
-        db.from('seller_applications').select('*').eq('status', 'pending'),
-        db.from('market_products').select('*').eq('status', 'pending'),
-        db.from('market_orders').select('*').order('created_at', { ascending: false })
-      ]);
-
-      setApplications(a.data || []);
-      setPendingProducts(p.data || []);
-      setOrders(o.data || []);
+      setIsAdmin(!!admin);
+    } else {
+      setIsAdmin(false);
     }
   }
 
   useEffect(() => {
-    loadProducts();
-
     if (!db) {
-      setMessage('Supabase সংযোগ পাওয়া যায়নি');
+      notify('Supabase সংযোগ পাওয়া যায়নি।');
       return;
     }
 
-    db.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      if (data.session) checkAdmin(data.session.user);
-    });
+    checkUser();
+    loadProducts();
 
-    const { data: listener } = db.auth.onAuthStateChange(
-      (_event, currentSession) => {
-        setSession(currentSession);
-        if (currentSession) checkAdmin(currentSession.user);
-        else setIsAdmin(false);
-      }
-    );
+    const { data: listener } = db.auth.onAuthStateChange(() => {
+      checkUser();
+    });
 
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  async function login(e) {
-    e.preventDefault();
-    const { error } = await db.auth.signInWithPassword({
-      email,
-      password
-    });
-    setMessage(error ? error.message : 'লগইন সফল');
+  async function signUp() {
+    if (!db) return notify('Supabase সংযোগ নেই।');
+    if (!email || !password) return notify('ইমেইল ও পাসওয়ার্ড দিন।');
+    if (password.length < 6) return notify('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের দিন।');
+
+    const { error } = await db.auth.signUp({ email, password });
+    if (error) return notify(error.message);
+    notify('রেজিস্ট্রেশন হয়েছে। ইমেইল যাচাই করতে হতে পারে।');
   }
 
-  async function signup(e) {
-    e.preventDefault();
-    const { error } = await db.auth.signUp({
-      email,
-      password
-    });
-    setMessage(error ? error.message : 'নিবন্ধন সফল');
+  async function signIn() {
+    if (!db) return notify('Supabase সংযোগ নেই।');
+    const { error } = await db.auth.signInWithPassword({ email, password });
+    if (error) return notify(error.message);
+    notify('লগইন সফল হয়েছে।');
+    await checkUser();
   }
 
-  async function logout() {
+  async function signOut() {
+    if (!db) return;
     await db.auth.signOut();
-    setMessage('লগআউট হয়েছে');
+    setUser(null);
+    setIsAdmin(false);
+    setPage('home');
+    notify('লগআউট হয়েছে।');
   }
 
-  async function apply(e) {
-    e.preventDefault();
+  async function applySeller() {
+    if (!db || !user) return notify('আগে লগইন করুন।');
+    if (!sellerName || !phone) return notify('নাম ও ফোন নম্বর দিন।');
 
     const { error } = await db.from('seller_applications').insert({
-      user_id: session.user.id,
+      user_id: user.id,
       seller_name: sellerName,
-      phone: sellerPhone,
+      phone,
       status: 'pending'
     });
 
-    setMessage(error ? error.message : 'বিক্রেতার আবেদন জমা হয়েছে');
+    if (error) return notify(error.message);
+    notify('সেলার আবেদন জমা হয়েছে।');
+    setSellerName('');
+    setPhone('');
   }
 
-  async function submitProduct(e) {
-    e.preventDefault();
+  async function submitProduct() {
+    if (!db || !user) return notify('আগে লগইন করুন।');
+    if (!title || !price || Number(price) <= 0) {
+      return notify('পণ্যের নাম ও সঠিক দাম দিন।');
+    }
 
     const { error } = await db.from('market_products').insert({
-      seller_user_id: session.user.id,
+      seller_user_id: user.id,
       title,
       price: Number(price),
-      category,
+      category: productCategory,
       description,
       status: 'pending'
     });
 
-    setMessage(error ? error.message : 'পণ্য জমা হয়েছে');
-                                                      }function addToCart(product) {
+    if (error) return notify(error.message);
+    notify('পণ্য অনুমোদনের জন্য জমা হয়েছে।');
+    setTitle('');
+    setPrice('');
+    setDescription('');
+  }
+
+  function addToCart(product) {
     setCart(old => {
       const found = old.find(item => item.id === product.id);
       if (found) {
@@ -156,476 +160,323 @@ function App() {
             : item
         );
       }
-      return [...old, {
-        id: product.id,
-        title: product.title,
-        price: Number(product.price),
-        quantity: 1
-      }];
+      return [...old, { ...product, quantity: 1 }];
     });
-    setMessage('কার্টে যোগ হয়েছে');
+    notify('কার্টে যোগ হয়েছে।');
   }
 
   function changeQuantity(id, amount) {
     setCart(old =>
-      old.map(item =>
-        item.id === id
-          ? { ...item, quantity: item.quantity + amount }
-          : item
-      ).filter(item => item.quantity > 0)
+      old
+        .map(item =>
+          item.id === id
+            ? { ...item, quantity: item.quantity + amount }
+            : item
+        )
+        .filter(item => item.quantity > 0)
     );
   }
 
-  async function placeOrder(e) {
-    e.preventDefault();
+  const total = cart.reduce(
+    (sum, item) => sum + Number(item.price) * item.quantity,
+    0
+  );
 
-    if (!db || !cart.length) {
-      setMessage('কার্ট খালি অথবা সংযোগ নেই');
-      return;
+  async function placeOrder() {
+    if (!db) return notify('Supabase সংযোগ নেই।');
+    if (!cart.length) return notify('কার্ট খালি।');
+    if (!customerName || !customerPhone || !address) {
+      return notify('নাম, ফোন ও ঠিকানা পূরণ করুন।');
     }
 
-    if (!customer.trim() || !customerPhone.trim() || !address.trim()) {
-      setMessage('নাম, ফোন ও ঠিকানা দিন');
-      return;
-    }
+    const items = cart.map(item => ({
+      id: item.id,
+      title: item.title,
+      price: Number(item.price),
+      quantity: item.quantity
+    }));
 
     const { error } = await db.from('market_orders').insert({
-      customer_name: customer,
+      customer_name: customerName,
       phone: customerPhone,
       address,
-      items: cart,
+      items,
       total,
       status: 'pending'
     });
 
-    if (error) {
-      setMessage('অর্ডার হয়নি: ' + error.message);
-    } else {
-      setMessage('অর্ডার জমা হয়েছে');
-      setCart([]);
-      setCustomer('');
-      setCustomerPhone('');
-      setAddress('');
-    }
+    if (error) return notify(error.message);
+
+    setCart([]);
+    setCustomerName('');
+    setCustomerPhone('');
+    setAddress('');
+    setPage('home');
+    notify('অর্ডার জমা হয়েছে।');
   }
 
-  async function refreshAdmin() {
-    if (session) await checkAdmin(session.user);
+  async function loadAdmin() {
+    if (!db || !isAdmin) return;
+
+    const [p, s, o] = await Promise.all([
+      db.from('market_products').select('*').eq('status', 'pending'),
+      db.from('seller_applications').select('*').eq('status', 'pending'),
+      db.from('market_orders').select('*').order('id', { ascending: false })
+    ]);
+
+    if (p.error) notify(p.error.message);
+    if (s.error) notify(s.error.message);
+    if (o.error) notify(o.error.message);
+
+    setPendingProducts(p.data || []);
+    setPendingSellers(s.data || []);
+    setOrders(o.data || []);
   }
 
-  async function reviewOrder(id, status) {
-    const { error } = await db
-      .from('market_orders')
-      .update({ status })
-      .eq('id', id);
-
-    setMessage(error ? error.message : 'অর্ডার আপডেট হয়েছে');
-    if (!error) await refreshAdmin();
-  }
-
-  async function reviewProduct(id, status) {
+  async function approveProduct(id, status) {
+    if (!db || !isAdmin) return;
     const { error } = await db
       .from('market_products')
       .update({ status })
       .eq('id', id);
 
-    setMessage(error ? error.message : 'পণ্য আপডেট হয়েছে');
-    if (!error) {
-      await refreshAdmin();
-      await loadProducts();
-    }
+    if (error) return notify(error.message);
+    notify('পণ্যের অবস্থা পরিবর্তন হয়েছে।');
+    await loadAdmin();
+    await loadProducts();
   }
 
-  async function reviewSeller(id, status) {
+  async function approveSeller(id, status) {
+    if (!db || !isAdmin) return;
     const { error } = await db
       .from('seller_applications')
       .update({ status })
       .eq('id', id);
 
-    setMessage(error ? error.message : 'আবেদন আপডেট হয়েছে');
-    if (!error) await refreshAdmin();
-      }return (
-    <>
-      <header className="panel">
-        <h1>BD BUSINESS</h1>
-        <p>অনলাইন মার্কেটপ্লেস</p>
-        {session && <button onClick={logout}>লগআউট</button>}
-      </header>
+    if (error) return notify(error.message);
+    notify('সেলারের অবস্থা পরিবর্তন হয়েছে।');
+    await loadAdmin();
+  }
 
-      <main>
-        {message && <p className="message">{message}</p>}
+  async function updateOrder(id, status) {
+    if (!db || !isAdmin) return;
+    const { error } = await db
+      .from('market_orders')
+      .update({ status })
+      .eq('id', id);
 
-        {!session && (
-          <section className="panel">
-            <h2>লগইন / নিবন্ধন</h2>
-            <form onSubmit={login}>
-              <input type="email" placeholder="ইমেইল"
-                value={email} onChange={e => setEmail(e.target.value)} required />
-              <input type="password" placeholder="পাসওয়ার্ড"
-                value={password} onChange={e => setPassword(e.target.value)} required />
-              <button type="submit">লগইন</button>
-            </form>
-            <button onClick={signup}>নতুন অ্যাকাউন্ট খুলুন</button>
-          </section>
-        )}
+    if (error) return notify(error.message);
+    notify('অর্ডারের অবস্থা পরিবর্তন হয়েছে।');
+    await loadAdmin();
+  }
 
-        {session && (
-          <>
-            <section className="panel">
-              <h2>বিক্রেতা নিবন্ধন</h2>
-              <form onSubmit={apply}>
-                <input placeholder="বিক্রেতার নাম"
-                  value={sellerName} onChange={e => setSellerName(e.target.value)} required />
-                <input placeholder="মোবাইল নম্বর"
-                  value={sellerPhone} onChange={e => setSellerPhone(e.target.value)} required />
-                <button type="submit">আবেদন জমা দিন</button>
-              </form>
-            </section>
+  useEffect(() => {
+    if (page === 'admin' && isAdmin) loadAdmin();
+  }, [page, isAdmin]);
 
-            <section className="panel">
-              <h2>নতুন পণ্য যোগ করুন</h2>
-              <form onSubmit={submitProduct}>
-                <input placeholder="পণ্যের নাম"
-                  value={title} onChange={e => setTitle(e.target.value)} required />
-                <input type="number" placeholder="দাম"
-                  value={price} onChange={e => setPrice(e.target.value)} required />
-                <select value={category} onChange={e => setCategory(e.target.value)}>
-                  <option>Food and sweets</option>
-                  <option>Bike Parts</option>
-                  <option>Bike servicing</option>
-                  <option>Other</option>
-                </select>
-                <textarea placeholder="পণ্যের বিবরণ"
-                  value={description} onChange={e => setDescription(e.target.value)} />
-                <button type="submit">পণ্য জমা দিন</button>
-              </form>
-            </section>
-          </>
-        )}
-
-        <section className="panel">
-          <h2>আমাদের পণ্য</h2>
-          {products.map(product => (
-            <article className="product" key={product.id}>
-              <h3>{product.title}</h3>
-              <p>{product.category}</p>
-              <p>{product.description}</p>
-              <strong>{product.price} টাকা</strong>
-              <button onClick={() => addToCart(product)}>কার্টে যোগ করুন</button>
-            </article>
-          ))}
-          {!products.length && <p>এখনো কোনো অনুমোদিত পণ্য নেই।</p>}
-        </section>
-
-        <section className="panel">
-          <h2>আপনার কার্ট</h2>
-          {cart.map(item => (
-            <div key={item.id}>
-              <p>{item.title} — {item.price} টাকা</p>
-              <button onClick={() => changeQuantity(item.id, -1)}>−</button>
-              {' '}{item.quantity}{' '}
-              <button onClick={() => changeQuantity(item.id, 1)}>+</button>
-            </div>
-          ))}
-          <h3>মোট: {total} টাকা</h3>
-          <form onSubmit={placeOrder}>
-            <input placeholder="আপনার নাম" value={customer}
-              onChange={e => setCustomer(e.target.value)} required />
-            <input placeholder="মোবাইল নম্বর" value={customerPhone}
-              onChange={e => setCustomerPhone(e.target.value)} required />
-            <textarea placeholder="সম্পূর্ণ ঠিকানা" value={address}
-              onChange={e => setAddress(e.target.value)} required />
-            <button type="submit" disabled={!cart.length}>অর্ডার নিশ্চিত করুন</button>
-          </form>
-        </section>
-
-        {isAdmin && (
-          <section className="panel">
-            <h2>অ্যাডমিন প্যানেল</h2>
-            <button onClick={refreshAdmin}>রিফ্রেশ করুন</button>
-
-            <h3>গ্রাহকের অর্ডার</h3>
-            {orders.map(order => (
-              <article className="product" key={order.id}>
-                <p>নাম: {order.customer_name}</p>
-                <p>ফোন: {order.phone}</p>
-                <p>ঠিকানা: {order.address}</p>
-                <p>পণ্য: {JSON.stringify(order.items)}</p>
-                <p>মোট: {order.total} টাকা</p>
-                <p>অবস্থা: {order.status}</p>
-                {order.status === 'pending' && (
-                  <>
-                    <button onClick={() => reviewOrder(order.id, 'approved')}>Approve</button>
-                    <button onClick={() => reviewOrder(order.id, 'rejected')}>Reject</button>
-                  </>
-                )}
-              </article>
-            ))}
-
-            <h3>বিক্রেতার আবেদন</h3>
-            {applications.map(item => (
-              <article className="product" key={item.id}>
-                <p>{item.seller_name} — {item.phone}</p>
-                <button onClick={() => reviewSeller(item.id, 'approved')}>Approve</button>
-                <button onClick={() => reviewSeller(item.id, 'rejected')}>Reject</button>
-              </article>
-            ))}
-
-            <h3>পণ্যের অনুমোদন</h3>
-            {pendingProducts.map(item => (
-              <article className="product" key={item.id}>
-                <p>{item.title} — {item.price} টাকা</p>
-                <button onClick={() => reviewProduct(item.id, 'approved')}>Approve</button>
-                <button onClick={() => reviewProduct(item.id, 'rejected')}>Reject</button>
-              </article>
-            ))}
-          </section>
-        )}
-      </main>
-
-      <footer className="panel">
-        <p>BD BUSINESS © 2026</p>
-        <p>মদিনা বাইক সার্ভিসিং সেন্টার এন্ড বাইক গ্যালারি</p>
-      </footer>
-    </>
+  const filteredProducts = products.filter(product =>
+    category === 'সব' || product.category === category
   );
-}
-
-createRoot(document.getElementById('root')).render(<App />);function addToCart(product) {
-    setCart(old => {
-      const found = old.find(item => item.id === product.id);
-      if (found) {
-        return old.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        );
-      }
-      return [...old, {
-        id: product.id,
-        title: product.title,
-        price: Number(product.price),
-        quantity: 1
-      }];
-    });
-    setMessage('কার্টে যোগ হয়েছে');
-  }
-
-  function changeQuantity(id, amount) {
-    setCart(old =>
-      old.map(item =>
-        item.id === id
-          ? { ...item, quantity: item.quantity + amount }
-          : item
-      ).filter(item => item.quantity > 0)
-    );
-  }
-
-  async function placeOrder(e) {
-    e.preventDefault();
-
-    if (!db || !cart.length) {
-      setMessage('কার্ট খালি অথবা সংযোগ নেই');
-      return;
-    }
-
-    if (!customer.trim() || !customerPhone.trim() || !address.trim()) {
-      setMessage('নাম, ফোন ও ঠিকানা দিন');
-      return;
-    }
-
-    const { error } = await db.from('market_orders').insert({
-      customer_name: customer,
-      phone: customerPhone,
-      address,
-      items: cart,
-      total,
-      status: 'pending'
-    });
-
-    if (error) {
-      setMessage('অর্ডার হয়নি: ' + error.message);
-    } else {
-      setMessage('অর্ডার জমা হয়েছে');
-      setCart([]);
-      setCustomer('');
-      setCustomerPhone('');
-      setAddress('');
-    }
-  }
-
-  async function refreshAdmin() {
-    if (session) await checkAdmin(session.user);
-  }
-
-  async function reviewOrder(id, status) {
-    const { error } = await db.from('market_orders')
-      .update({ status }).eq('id', id);
-
-    setMessage(error ? error.message : 'অর্ডার আপডেট হয়েছে');
-    if (!error) await refreshAdmin();
-  }
-
-  async function reviewProduct(id, status) {
-    const { error } = await db.from('market_products')
-      .update({ status }).eq('id', id);
-
-    setMessage(error ? error.message : 'পণ্য আপডেট হয়েছে');
-    if (!error) {
-      await refreshAdmin();
-      await loadProducts();
-    }
-  }
-
-  async function reviewSeller(id, status) {
-    const { error } = await db.from('seller_applications')
-      .update({ status }).eq('id', id);
-
-    setMessage(error ? error.message : 'আবেদন আপডেট হয়েছে');
-    if (!error) await refreshAdmin();
-  }
 
   return (
-    <><header className="panel">
+    <>
+      <style>{`
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: Arial, sans-serif; background: #f4f6f8; color: #222; }
+        header { background: #073b32; color: white; padding: 18px 12px; text-align: center; }
+        header h1 { margin: 0 0 6px; font-size: 27px; }
+        nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; padding: 12px; background: white; }
+        button { border: 0; border-radius: 7px; padding: 10px 13px; background: #087b58; color: white; cursor: pointer; }
+        button.secondary { background: #34495e; }
+        button.danger { background: #bd3434; }
+        button:disabled { opacity: .5; }
+        main { max-width: 950px; margin: auto; padding: 15px; }
+        .card { background: white; border-radius: 12px; padding: 15px; margin: 12px 0; box-shadow: 0 2px 8px #00000012; }
+        input, textarea, select { display: block; width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 7px; margin: 8px 0 13px; font-size: 16px; }
+        textarea { min-height: 75px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+        .price { color: #087b58; font-size: 20px; font-weight: bold; }
+        .muted { color: #666; font-size: 14px; }
+        .message { position: sticky; top: 0; background: #fff2c7; padding: 12px; text-align: center; z-index: 5; }
+        footer { text-align: center; padding: 25px; background: #073b32; color: white; margin-top: 25px; }
+        h2 { color: #073b32; }
+      `}</style>
+
+      <header>
         <h1>BD BUSINESS</h1>
-        <p>অনলাইন মার্কেটপ্লেস</p>
-        {session && <button onClick={logout}>লগআউট</button>}
+        <div>খাবার • মিষ্টি • বাইক পার্টস • সার্ভিসিং</div>
       </header>
 
+      {message && <div className="message">{message}</div>}
+
+      <nav>
+        <button onClick={() => setPage('home')}>হোম</button>
+        <button onClick={() => { setCategory('Food and sweets'); setPage('home'); }}>খাবার</button>
+        <button onClick={() => { setCategory('Bike Parts'); setPage('home'); }}>বাইক পার্টস</button>
+        <button onClick={() => setPage('cart')}>কার্ট ({cart.length})</button>
+        <button onClick={() => setPage('seller')}>সেলার</button>
+        <button onClick={() => setPage('add')}>পণ্য যোগ</button>
+        {user
+          ? <button className="secondary" onClick={signOut}>লগআউট</button>
+          : <button onClick={() => setPage('login')}>লগইন</button>}
+        {isAdmin && <button className="secondary" onClick={() => setPage('admin')}>অ্যাডমিন</button>}
+      </nav>
+
       <main>
-        {message && <p className="message">{message}</p>}
-
-        {!session && (
-          <section className="panel">
-            <h2>লগইন / নিবন্ধন</h2>
-            <form onSubmit={login}>
-              <input type="email" placeholder="ইমেইল"
-                value={email} onChange={e => setEmail(e.target.value)} required />
-              <input type="password" placeholder="পাসওয়ার্ড"
-                value={password} onChange={e => setPassword(e.target.value)} required />
-              <button type="submit">লগইন</button>
-            </form>
-            <button type="button" onClick={signup}>নতুন অ্যাকাউন্ট খুলুন</button>
-          </section>
-        )}
-
-        {session && (
+        {page === 'home' && (
           <>
-            <section className="panel">
-              <h2>বিক্রেতা নিবন্ধন</h2>
-              <form onSubmit={apply}>
-                <input placeholder="বিক্রেতার নাম"
-                  value={sellerName} onChange={e => setSellerName(e.target.value)} required />
-                <input placeholder="মোবাইল নম্বর"
-                  value={sellerPhone} onChange={e => setSellerPhone(e.target.value)} required />
-                <button type="submit">আবেদন জমা দিন</button>
-              </form>
+            <section className="card">
+              <h2>BD BUSINESS-এ স্বাগতম</h2>
+              <p>এক জায়গায় খাবার ও মিষ্টি, বাইক পার্টস এবং সার্ভিসিং সম্পর্কিত পণ্য দেখুন।</p>
+              <p><b>মদিনা বাইক সার্ভিসিং সেন্টার এন্ড বাইক গ্যালারি</b></p>
             </section>
 
-            <section className="panel">
-              <h2>নতুন পণ্য যোগ করুন</h2>
-              <form onSubmit={submitProduct}>
-                <input placeholder="পণ্যের নাম"
-                  value={title} onChange={e => setTitle(e.target.value)} required />
-                <input type="number" placeholder="দাম"
-                  value={price} onChange={e => setPrice(e.target.value)} required />
-                <select value={category} onChange={e => setCategory(e.target.value)}>
-                  <option>Food and sweets</option>
-                  <option>Bike Parts</option>
-                  <option>Bike servicing</option>
-                  <option>Other</option>
-                </select>
-                <textarea placeholder="পণ্যের বিবরণ"
-                  value={description} onChange={e => setDescription(e.target.value)} />
-                <button type="submit">পণ্য জমা দিন</button>
-              </form>
+            <section className="card">
+              <h2>পণ্যের বিভাগ</h2>
+              <button onClick={() => setCategory('সব')}>সব পণ্য</button>{' '}
+              <button onClick={() => setCategory('Food and sweets')}>খাবার ও মিষ্টি</button>{' '}
+              <button onClick={() => setCategory('Bike Parts')}>বাইক পার্টস</button>{' '}
+              <button onClick={() => setCategory('Bike servicing')}>বাইক সার্ভিসিং</button>
             </section>
+
+            <h2>অনুমোদিত পণ্য</h2>
+            <div className="grid">
+              {filteredProducts.map(product => (
+                <div className="card" key={product.id}>
+                  <h3>{product.title}</h3>
+                  <div className="price">৳ {product.price}</div>
+                  <p>{product.category}</p>
+                  <p className="muted">{product.description}</p>
+                  <button onClick={() => addToCart(product)}>কার্টে যোগ করুন</button>
+                </div>
+              ))}
+            </div>
+            {!filteredProducts.length && (
+              <p className="card">এখনো কোনো অনুমোদিত পণ্য নেই।</p>
+            )}
           </>
         )}
 
-        <section className="panel">
-          <h2>আমাদের পণ্য</h2>
-          {products.map(product => (
-            <article className="product" key={product.id}>
-              <h3>{product.title}</h3>
-              <p>{product.category}</p>
-              <p>{product.description}</p>
-              <strong>{product.price} টাকা</strong>
-              <button onClick={() => addToCart(product)}>কার্টে যোগ করুন</button>
-            </article>
-          ))}
-          {!products.length && <p>এখনো কোনো অনুমোদিত পণ্য নেই।</p>}
-        </section>
+        {page === 'login' && (
+          <section className="card">
+            <h2>লগইন / রেজিস্ট্রেশন</h2>
+            <input type="email" placeholder="ইমেইল" value={email} onChange={e => setEmail(e.target.value)} />
+            <input type="password" placeholder="পাসওয়ার্ড" value={password} onChange={e => setPassword(e.target.value)} />
+            <button onClick={signIn}>লগইন</button>{' '}
+            <button className="secondary" onClick={signUp}>নতুন অ্যাকাউন্ট খুলুন</button>
+          </section>
+        )}
 
-        <section className="panel">
-          <h2>আপনার কার্ট</h2>
-          {cart.map(item => (
-            <div key={item.id}>
-              <p>{item.title} — {item.price} টাকা</p>
-              <button onClick={() => changeQuantity(item.id, -1)}>−</button>
-              {' '}{item.quantity}{' '}
-              <button onClick={() => changeQuantity(item.id, 1)}>+</button>
-            </div>
-          ))}
-          <h3>মোট: {total} টাকা</h3>
-          <form onSubmit={placeOrder}>
-            <input placeholder="আপনার নাম" value={customer}
-              onChange={e => setCustomer(e.target.value)} required />
-            <input placeholder="মোবাইল নম্বর" value={customerPhone}
-              onChange={e => setCustomerPhone(e.target.value)} required />
-            <textarea placeholder="সম্পূর্ণ ঠিকানা" value={address}
-              onChange={e => setAddress(e.target.value)} required />
-            <button type="submit" disabled={!cart.length}>অর্ডার নিশ্চিত করুন</button>
-          </form>
-        </section>
+        {page === 'seller' && (
+          <section className="card">
+            <h2>সেলার আবেদন</h2>
+            {!user ? <p>সেলার আবেদন করতে আগে লগইন করুন।</p> : <>
+              <input placeholder="সেলারের নাম" value={sellerName} onChange={e => setSellerName(e.target.value)} />
+              <input placeholder="ফোন নম্বর" value={phone} onChange={e => setPhone(e.target.value)} />
+              <button onClick={applySeller}>আবেদন জমা দিন</button>
+            </>}
+          </section>
+        )}
 
-        {isAdmin && (
-          <section className="panel">
-            <h2>অ্যাডমিন প্যানেল</h2>
-            <button onClick={refreshAdmin}>রিফ্রেশ করুন</button>
+        {page === 'add' && (
+          <section className="card">
+            <h2>নতুন পণ্য যোগ করুন</h2>
+            {!user ? <p>পণ্য যোগ করতে আগে লগইন করুন।</p> : <>
+              <input placeholder="পণ্যের নাম" value={title} onChange={e => setTitle(e.target.value)} />
+              <input type="number" placeholder="দাম (টাকা)" value={price} onChange={e => setPrice(e.target.value)} />
+              <select value={productCategory} onChange={e => setProductCategory(e.target.value)}>
+                <option>Food and sweets</option>
+                <option>Bike Parts</option>
+                <option>Bike servicing</option>
+              </select>
+              <textarea placeholder="পণ্যের বিবরণ" value={description} onChange={e => setDescription(e.target.value)} />
+              <button onClick={submitProduct}>অনুমোদনের জন্য জমা দিন</button>
+            </>}
+          </section>
+        )}
 
-            <h3>গ্রাহকের অর্ডার</h3>
-            {orders.map(order => (
-              <article className="product" key={order.id}>
-                <p>নাম: {order.customer_name}</p>
-                <p>ফোন: {order.phone}</p>
-                <p>ঠিকানা: {order.address}</p>
-                <p>পণ্য: {JSON.stringify(order.items)}</p>
-                <p>মোট: {order.total} টাকা</p>
-                <p>অবস্থা: {order.status}</p>
-                {order.status === 'pending' && (
-                  <>
-                    <button onClick={() => reviewOrder(order.id, 'approved')}>Approve</button>
-                    <button onClick={() => reviewOrder(order.id, 'rejected')}>Reject</button>
-                  </>
-                )}
-              </article>
+        {page === 'cart' && (
+          <section className="card">
+            <h2>আপনার কার্ট</h2>
+            {!cart.length && <p>কার্ট খালি।</p>}
+            {cart.map(item => (
+              <div className="card" key={item.id}>
+                <b>{item.title}</b>
+                <p>৳ {item.price} × {item.quantity}</p>
+                <button onClick={() => changeQuantity(item.id, -1)}>-</button>{' '}
+                <button onClick={() => changeQuantity(item.id, 1)}>+</button>
+              </div>
             ))}
+            <h3>মোট: ৳ {total}</h3>
+            {cart.length > 0 && <>
+              <h2>অর্ডারের তথ্য</h2>
+              <input placeholder="আপনার নাম" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+              <input placeholder="ফোন নম্বর" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
+              <textarea placeholder="সম্পূর্ণ ঠিকানা" value={address} onChange={e => setAddress(e.target.value)} />
+              <button onClick={placeOrder}>অর্ডার জমা দিন</button>
+            </>}
+          </section>
+        )}
 
-            <h3>বিক্রেতার আবেদন</h3>
-            {applications.map(item => (
-              <article className="product" key={item.id}>
-                <p>{item.seller_name} — {item.phone}</p>
-                <button onClick={() => reviewSeller(item.id, 'approved')}>Approve</button>
-                <button onClick={() => reviewSeller(item.id, 'rejected')}>Reject</button>
-              </article>
-            ))}
+        {page === 'admin' && (
+          <section>
+            {!isAdmin ? <p className="card">অ্যাডমিন অনুমতি প্রয়োজন।</p> : <>
+              <div className="card">
+                <h2>অ্যাডমিন প্যানেল</h2>
+                <button onClick={loadAdmin}>তথ্য রিফ্রেশ</button>
+              </div>
 
-            <h3>পণ্যের অনুমোদন</h3>
-            {pendingProducts.map(item => (
-              <article className="product" key={item.id}>
-                <p>{item.title} — {item.price} টাকা</p>
-                <button onClick={() => reviewProduct(item.id, 'approved')}>Approve</button>
-                <button onClick={() => reviewProduct(item.id, 'rejected')}>Reject</button>
-              </article>
-            ))}
+              <div className="card">
+                <h2>সেলার আবেদন</h2>
+                {pendingSellers.map(item => (
+                  <div className="card" key={item.id}>
+                    <b>{item.seller_name}</b>
+                    <p>{item.phone}</p>
+                    <button onClick={() => approveSeller(item.id, 'approved')}>অনুমোদন</button>{' '}
+                    <button className="danger" onClick={() => approveSeller(item.id, 'rejected')}>বাতিল</button>
+                  </div>
+                ))}
+                {!pendingSellers.length && <p>নতুন আবেদন নেই।</p>}
+              </div>
+
+              <div className="card">
+                <h2>পণ্য অনুমোদন</h2>
+                {pendingProducts.map(item => (
+                  <div className="card" key={item.id}>
+                    <b>{item.title}</b>
+                    <p>৳ {item.price} | {item.category}</p>
+                    <p>{item.description}</p>
+                    <button onClick={() => approveProduct(item.id, 'approved')}>অনুমোদন</button>{' '}
+                    <button className="danger" onClick={() => approveProduct(item.id, 'rejected')}>বাতিল</button>
+                  </div>
+                ))}
+                {!pendingProducts.length && <p>অনুমোদনের অপেক্ষায় পণ্য নেই।</p>}
+              </div>
+
+              <div className="card">
+                <h2>অর্ডার তালিকা</h2>
+                {orders.map(order => (
+                  <div className="card" key={order.id}>
+                    <b>{order.customer_name}</b>
+                    <p>ফোন: {order.phone}</p>
+                    <p>ঠিকানা: {order.address}</p>
+                    <p>মোট: ৳ {order.total}</p>
+                    <p>অবস্থা: {order.status}</p>
+                    <button onClick={() => updateOrder(order.id, 'confirmed')}>নিশ্চিত</button>{' '}
+                    <button onClick={() => updateOrder(order.id, 'delivered')}>ডেলিভারি হয়েছে</button>{' '}
+                    <button className="danger" onClick={() => updateOrder(order.id, 'cancelled')}>বাতিল</button>
+                  </div>
+                ))}
+                {!orders.length && <p>কোনো অর্ডার নেই।</p>}
+              </div>
+            </>}
           </section>
         )}
       </main>
 
-      <footer className="panel">
-        <p>BD BUSINESS © 2026</p>
-        <p>মদিনা বাইক সার্ভিসিং সেন্টার এন্ড বাইক গ্যালারি</p>
+      <footer>
+        <b>BD BUSINESS</b>
+        <p>খাবার ও মিষ্টি | বাইক পার্টস | মদিনা বাইক সার্ভিসিং সেন্টার</p>
       </footer>
     </>
   );
