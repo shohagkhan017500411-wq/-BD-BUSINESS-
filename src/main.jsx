@@ -313,7 +313,20 @@ function App() {
 
       <footer>© BD BUSINESS</footer>
     </>
-  );
-}
+{!session && (
+  <section className="panel">
+    <h2>নতুন পাসওয়ার্ড সেট করুন</h2>
+    <input
+      type="password"
+      placeholder="নতুন পাসওয়ার্ড"
+      value={newPassword}
+      onChange={e => NP(e.target.value)}
+    />
+    <button onClick={updatePassword}>
+      পাসওয়ার্ড পরিবর্তন
+    </button>
+  </section>
+)}  );
+ }
 
 createRoot(document.getElementById('root')).render(<App />);
