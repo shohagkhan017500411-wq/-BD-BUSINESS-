@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient } from '@supabase/supabase-js';
 
@@ -85,6 +85,138 @@ const defaultProducts = [
   }
 ];
 
+/* ---------------- LOCATION MAP ---------------- */
+
+function MapPicker({ onSelect }) {
+  const mapRef = useRef(null);
+  const mapInstance = useRef(null);
+  const markerRef = useRef(null);
+  const onSelectRef = useRef(onSelect);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
+
+  useEffect(() => {
+    let script;
+    let css;
+    let cancelled = false;
+
+    function initializeMap() {
+      if (cancelled || !mapRef.current || !window.L || mapInstance.current) {
+        return;
+      }
+
+      const L = window.L;
+      const map = L.map(mapRef.current).setView([23.8103, 90.4125], 7);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      map.on('click', event => {
+        const point = {
+          lat: event.latlng.lat,
+          lng: event.latlng.lng
+        };
+
+        if (markerRef.current) {
+          markerRef.current.setLatLng(event.latlng);
+        } else {
+          markerRef.current = L.marker(event.latlng).addTo(map);
+        }
+
+        onSelectRef.current(point);
+      });
+
+      mapInstance.current = map;
+      setReady(true);
+      window.setTimeout(() => map.invalidateSize(), 250);
+    }
+
+    css = document.createElement('link');
+    css.rel = 'stylesheet';
+    css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+    document.head.appendChild(css);
+
+    if (window.L) {
+      initializeMap();
+    } else {
+      script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.onload = initializeMap;
+      script.onerror = () => alert('ম্যাপ লোড হয়নি। ইন্টারনেট সংযোগ পরীক্ষা করুন।');
+      document.body.appendChild(script);
+    }
+
+    return () => {
+      cancelled = true;
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+        markerRef.current = null;
+      }
+      if (css) css.remove();
+      if (script) script.remove();
+    };
+  }, []);
+
+  function chooseCurrentLocation() {
+    if (!navigator.geolocation) {
+      alert('এই ফোনে লোকেশন সুবিধা পাওয়া যাচ্ছে না।');
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const point = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+
+        if (mapInstance.current && window.L) {
+          const location = [point.lat, point.lng];
+          mapInstance.current.setView(location, 16);
+
+          if (markerRef.current) {
+            markerRef.current.setLatLng(location);
+          } else {
+            markerRef.current = window.L.marker(location)
+              .addTo(mapInstance.current);
+          }
+        }
+
+        onSelectRef.current(point);
+      },
+      () => {
+        alert('ফোনের Location permission দিন, অথবা ম্যাপে পিন বসান।');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 0
+      }
+    );
+  }
+
+  return (
+    <section className="map-picker">
+      <button type="button" onClick={chooseCurrentLocation}>
+        📍 বর্তমান লোকেশন নিন
+      </button>
+
+      <p>অথবা ম্যাপে চাপ দিয়ে ডেলিভারির জায়গায় পিন বসান।</p>
+
+      <div ref={mapRef} className="map-area" />
+
+      {!ready && <p>ম্যাপ লোড হচ্ছে...</p>}
+    </section>
+  );
+}
+
+/* ---------------- MAIN APP ---------------- */
+
 function App() {
   const [page, setPage] = useState(
     window.location.pathname === '/admin-login' ? 'login' : 'home'
@@ -113,6 +245,9 @@ function App() {
   const [transactionId, setTransactionId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('bkash');
 
+  const [locationLat, setLocationLat] = useState(null);
+  const [locationLng, setLocationLng] = useState(null);
+
   const [productTitle, setProductTitle] = useState('');
   const [productCategory, setProductCategory] = useState('Foods');
   const [productImage, setProductImage] = useState(null);
@@ -129,26 +264,43 @@ function App() {
     window.setTimeout(() => setMessage(''), 3500);
   }
 
+  async function checkAdmin(userId) {
+    if (!db || !userId) {
+      setIsAdmin(false);
+      return false;
+    }
+
+    const { data, error } = await db
+      .from('admin_users')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) {
+      setIsAdmin(false);
+      return false;
+    }
+
+    const admin = !!data;
+    setIsAdmin(admin);
+    return admin;
+  }
+
   async function checkUser() {
     if (!db) return null;
 
     const { data } = await db.auth.getSession();
     const current = data?.session?.user || null;
+
     setUser(current);
 
     if (current) {
-      const { data: admin } = await db
-        .from('admin_users')
-        .select('user_id')
-        .eq('user_id', current.id)
-        .maybeSingle();
-
-      setIsAdmin(!!admin);
-      return !!admin;
+      await checkAdmin(current.id);
+    } else {
+      setIsAdmin(false);
     }
 
-    setIsAdmin(false);
-    return false;
+    return current;
   }
 
   useEffect(() => {
@@ -157,31 +309,50 @@ function App() {
       return;
     }
 
+    let active = true;
+
     async function start() {
       const { data } = await db.auth.getSession();
 
       if (!data?.session && window.location.pathname !== '/admin-login') {
         const { error } = await db.auth.signInAnonymously();
-        if (error) notify('কাস্টমার লগইন তৈরি হয়নি: ' + error.message);
+        if (error) notify('কাস্টমার সেশন তৈরি হয়নি: ' + error.message);
       }
 
-      await checkUser();
+      if (active) await checkUser();
     }
 
     start();
 
-    const { data: listener } = db.auth.onAuthStateChange(() => {
-      checkUser();
-    });
+    const { data: listener } = db.auth.onAuthStateChange(
+      (_event, session) => {
+        const current = session?.user || null;
+        setUser(current);
 
-    return () => listener.subscription.unsubscribe();
+        if (!current) {
+          setIsAdmin(false);
+        } else {
+          window.setTimeout(() => {
+            if (active) checkAdmin(current.id);
+          }, 0);
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   async function signIn() {
     if (!db) return notify('Supabase সংযোগ নেই।');
+    if (!email.trim() || !password) {
+      return notify('ইমেইল ও পাসওয়ার্ড লিখুন।');
+    }
 
     const { error } = await db.auth.signInWithPassword({
-      email,
+      email: email.trim(),
       password
     });
 
@@ -189,10 +360,20 @@ function App() {
 
     const admin = await checkUser();
 
-    if (!admin) {
-      await db.auth.signOut();
-      setIsAdmin(false);
-      return notify('এই অ্যাকাউন্ট অ্যাডমিন নয়।');
+    if (!admin || !isAdmin && !user) {
+      const { data } = await db.auth.getSession();
+      const current = data?.session?.user;
+      const { data: adminRow } = await db
+        .from('admin_users')
+        .select('user_id')
+        .eq('user_id', current?.id || '')
+        .maybeSingle();
+
+      if (!adminRow) {
+        await db.auth.signOut();
+        setIsAdmin(false);
+        return notify('এই অ্যাকাউন্ট অ্যাডমিন নয়।');
+      }
     }
 
     setPage('admin');
@@ -227,11 +408,11 @@ function App() {
 
     if (!data || data.length === 0) {
       if (isAdmin) {
-        const seed = defaultProducts.map(p => ({
-          title: p.title,
-          category: p.category,
-          image_url: p.image,
-          options: p.options
+        const seed = defaultProducts.map(product => ({
+          title: product.title,
+          category: product.category,
+          image_url: product.image,
+          options: product.options
         }));
 
         const { data: inserted, error: seedError } = await db
@@ -240,9 +421,9 @@ function App() {
           .select('*');
 
         if (!seedError && inserted?.length) {
-          setProducts(inserted.map(p => ({
-            ...p,
-            image: p.image_url
+          setProducts(inserted.map(product => ({
+            ...product,
+            image: product.image_url
           })));
           return;
         }
@@ -252,9 +433,9 @@ function App() {
       return;
     }
 
-    setProducts(data.map(p => ({
-      ...p,
-      image: p.image_url
+    setProducts(data.map(product => ({
+      ...product,
+      image: product.image_url
     })));
   }
 
@@ -265,8 +446,8 @@ function App() {
   async function uploadProductImage() {
     if (!productImage) return null;
 
-    const ext = productImage.name.split('.').pop() || 'jpg';
-    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const extension = productImage.name.split('.').pop() || 'jpg';
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
 
     const { error } = await db.storage
       .from('product-images')
@@ -284,6 +465,7 @@ function App() {
   function parseOptions() {
     return productOptions.split(',').map(part => {
       const [size, price] = part.split(':');
+
       return {
         size: size?.trim(),
         price: Number(price?.trim())
@@ -298,6 +480,7 @@ function App() {
     if (!productTitle.trim()) return notify('পণ্যের নাম লিখুন।');
 
     const options = parseOptions();
+
     if (!options.length) {
       return notify('ওজন ও দাম সঠিকভাবে লিখুন।');
     }
@@ -329,22 +512,26 @@ function App() {
 
       if (result.error) return notify(result.error.message);
 
-      setProductTitle('');
-      setProductCategory('Foods');
-      setProductImage(null);
-      setProductOptions('৫০০ গ্রাম:100, ১ কেজি:200');
-      setEditingProduct(null);
-
+      resetProductForm();
       await loadProducts();
       notify('পণ্য সংরক্ষণ হয়েছে।');
+      setPage('admin');
     } catch (error) {
       notify('ছবি বা পণ্য সংরক্ষণ হয়নি: ' + error.message);
     }
   }
 
+  function resetProductForm() {
+    setProductTitle('');
+    setProductCategory('Foods');
+    setProductImage(null);
+    setProductOptions('৫০০ গ্রাম:100, ১ কেজি:200');
+    setEditingProduct(null);
+  }
+
   function startEditProduct(product) {
     if (String(product.id).startsWith('base-')) {
-      return notify('আগে অ্যাডমিন লগইন করে পণ্য তালিকা লোড করুন।');
+      return notify('অ্যাডমিন প্যানেল খুলে পণ্য তালিকা লোড হতে দিন।');
     }
 
     setEditingProduct(product);
@@ -352,7 +539,7 @@ function App() {
     setProductCategory(product.category);
     setProductOptions(
       (product.options || [])
-        .map(o => `${o.size}:${o.price}`)
+        .map(option => `${option.size}:${option.price}`)
         .join(', ')
     );
     setProductImage(null);
@@ -399,6 +586,7 @@ function App() {
           cartId,
           id: product.id,
           title: product.title,
+          category: product.category,
           size: option.size,
           price: option.price,
           quantity: 1
@@ -441,6 +629,7 @@ function App() {
 
     const items = cart.map(item => ({
       title: item.title,
+      category: item.category,
       size: item.size,
       price: item.price,
       quantity: item.quantity
@@ -464,16 +653,20 @@ function App() {
       payment_status:
         paymentMethod === 'bkash'
           ? 'pending_verification'
-          : 'cash_on_delivery'
+          : 'cash_on_delivery',
+      location_lat: locationLat,
+      location_lng: locationLng
     });
 
-    if (error) return notify(error.message);
+    if (error) return notify('অর্ডার জমা হয়নি: ' + error.message);
 
     setCart([]);
     setCustomerName('');
     setCustomerPhone('');
     setAddress('');
     setTransactionId('');
+    setLocationLat(null);
+    setLocationLng(null);
     setPage('my-orders');
 
     await loadMyOrders();
@@ -558,6 +751,7 @@ function App() {
     if (error) return notify(error.message);
 
     const unique = [];
+
     (data || []).forEach(row => {
       if (!unique.some(item => item.user_id === row.user_id)) {
         unique.push(row);
@@ -605,14 +799,30 @@ function App() {
     if (page === 'admin' && isAdmin) {
       loadOrders();
       loadChatCustomers();
+
+      const timer = window.setInterval(() => {
+        loadOrders();
+        loadChatCustomers();
+      }, 15000);
+
+      return () => window.clearInterval(timer);
     }
+  }, [page, isAdmin]);
+
+  useEffect(() => {
     if (page === 'my-orders') loadMyOrders();
+  }, [page, user]);
+
+  useEffect(() => {
     if (page === 'chat' && !isAdmin) loadCustomerChat();
+  }, [page, user, isAdmin]);
+
+  useEffect(() => {
     if (page === 'admin-chat' && isAdmin) {
       loadChatCustomers();
       if (selectedCustomer) loadAdminChat(selectedCustomer);
     }
-  }, [page, isAdmin, user, selectedCustomer]);
+  }, [page, isAdmin, selectedCustomer]);
 
   const whatsappLink =
     `https://wa.me/88${WHATSAPP}?text=${encodeURIComponent(
@@ -627,6 +837,55 @@ function App() {
 
     return matchesCategory && matchesSearch;
   });
+
+  function deliveryEstimates(order) {
+    const items = order.items || [];
+    const uniqueCategories = [
+      ...new Set(items.map(item => item.category).filter(Boolean))
+    ];
+
+    if (!uniqueCategories.length) return [];
+
+    const start = new Date(order.created_at || Date.now());
+
+    return uniqueCategories.map(itemCategory => {
+      const hours = itemCategory === 'Foods' ? 6 : 96;
+      const deliveryDate = new Date(start.getTime() + hours * 60 * 60 * 1000);
+
+      return {
+        category: itemCategory,
+        deliveryDate
+      };
+    });
+  }
+
+  function showDeliveryEstimates(order) {
+    const estimates = deliveryEstimates(order);
+
+    if (!estimates.length) return null;
+
+    return (
+      <div className="delivery-info">
+        <b>সম্ভাব্য ডেলিভারি সময়:</b>
+        {estimates.map((estimate, index) => (
+          <p key={index}>
+            {estimate.category}: {estimate.deliveryDate.toLocaleString('bn-BD')}
+          </p>
+        ))}
+        <small>এটি আনুমানিক সময়; ডেলিভারিতে পরিবর্তন হতে পারে।</small>
+      </div>
+    );
+  }
+
+  function orderStatus(status) {
+    const names = {
+      pending: 'অপেক্ষমাণ',
+      confirmed: 'নিশ্চিত',
+      cancelled: 'বাতিল'
+    };
+
+    return names[status] || status || 'অজানা';
+  }
 
   return (
     <>
@@ -647,13 +906,14 @@ function App() {
           color: white;
           cursor: pointer;
           margin: 3px;
+          font-size: 14px;
         }
         button.secondary { background: #34495e; }
         button.danger { background: #bd3434; }
         header {
           background: #073b32;
           color: white;
-          padding: 14px;
+          padding: 12px;
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -661,7 +921,7 @@ function App() {
           top: 0;
           z-index: 10;
         }
-        header h1 { margin: 0; font-size: 23px; }
+        header h1 { margin: 0; font-size: 21px; }
         .header-button {
           font-size: 24px;
           background: transparent;
@@ -793,6 +1053,26 @@ function App() {
           align-items: center;
         }
         .row input { flex: 1; min-width: 0; }
+        .map-picker {
+          background: #f8faf9;
+          border: 1px solid #dce5e1;
+          border-radius: 10px;
+          padding: 10px;
+          margin: 12px 0;
+        }
+        .map-area {
+          height: 300px;
+          width: 100%;
+          border-radius: 10px;
+          background: #e8eeee;
+          z-index: 1;
+        }
+        .delivery-info {
+          background: #f0f7f3;
+          border-radius: 8px;
+          padding: 10px;
+          margin-top: 10px;
+        }
         footer {
           text-align: center;
           padding: 20px;
@@ -820,6 +1100,7 @@ function App() {
         <button
           className="header-button"
           onClick={() => setSearchOpen(!searchOpen)}
+          aria-label="Search"
         >
           ⌕
         </button>
@@ -841,7 +1122,7 @@ function App() {
           <input
             placeholder="পণ্য খুঁজুন..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={event => setSearch(event.target.value)}
           />
         </div>
       )}
@@ -877,8 +1158,8 @@ function App() {
                     className="product-image"
                     src={product.image || 'https://placehold.co/600x400?text=BD+BUSINESS'}
                     alt={product.title}
-                    onError={e => {
-                      e.currentTarget.src =
+                    onError={event => {
+                      event.currentTarget.src =
                         'https://placehold.co/600x400?text=BD+BUSINESS';
                     }}
                   />
@@ -890,9 +1171,7 @@ function App() {
                       <p className="price">
                         {option.size} — ৳{option.price}
                       </p>
-                      <button
-                        onClick={() => addToCart(product, option)}
-                      >
+                      <button onClick={() => addToCart(product, option)}>
                         কার্টে যোগ
                       </button>
                     </div>
@@ -965,7 +1244,7 @@ function App() {
                     <input
                       placeholder="Transaction ID"
                       value={transactionId}
-                      onChange={e => setTransactionId(e.target.value)}
+                      onChange={event => setTransactionId(event.target.value)}
                     />
                   </>
                 )}
@@ -975,20 +1254,40 @@ function App() {
                 <input
                   placeholder="ক্রেতার নাম"
                   value={customerName}
-                  onChange={e => setCustomerName(e.target.value)}
+                  onChange={event => setCustomerName(event.target.value)}
                 />
 
                 <input
                   placeholder="ফোন নম্বর"
                   value={customerPhone}
-                  onChange={e => setCustomerPhone(e.target.value)}
+                  onChange={event => setCustomerPhone(event.target.value)}
                 />
 
                 <textarea
                   placeholder="ডেলিভারির ঠিকানা"
                   value={address}
-                  onChange={e => setAddress(e.target.value)}
+                  onChange={event => setAddress(event.target.value)}
                 />
+
+                <h3>ডেলিভারি লোকেশন</h3>
+                <p>লোকেশন দেওয়া ঐচ্ছিক। ঠিকানা লিখে অর্ডারও করতে পারবেন।</p>
+
+                <MapPicker
+                  onSelect={point => {
+                    setLocationLat(point.lat);
+                    setLocationLng(point.lng);
+                  }}
+                />
+
+                {locationLat !== null && locationLng !== null && (
+                  <p>
+                    <b>লোকেশন নির্বাচন হয়েছে।</b>
+                    <br />
+                    Latitude: {locationLat}
+                    <br />
+                    Longitude: {locationLng}
+                  </p>
+                )}
 
                 <button onClick={placeOrder}>অর্ডার জমা দিন</button>
               </>
@@ -1009,8 +1308,23 @@ function App() {
               <div className="card" key={order.id}>
                 <b>অর্ডার #{order.id}</b>
                 <p>মোট: ৳{order.total}</p>
-                <p>অবস্থা: {order.status}</p>
+                <p>অবস্থা: {orderStatus(order.status)}</p>
                 <p>ঠিকানা: {order.address}</p>
+
+                {showDeliveryEstimates(order)}
+
+                {order.location_lat != null && order.location_lng != null && (
+                  <p>
+                    📍 <a
+                      href={`https://www.google.com/maps?q=${order.location_lat},${order.location_lng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      আমার লোকেশন ম্যাপে দেখুন
+                    </a>
+                  </p>
+                )}
+
                 {(order.items || []).map((item, index) => (
                   <p key={index}>
                     {item.title} ({item.size}) × {item.quantity}
@@ -1049,7 +1363,7 @@ function App() {
               <input
                 placeholder="মেসেজ লিখুন..."
                 value={chatText}
-                onChange={e => setChatText(e.target.value)}
+                onChange={event => setChatText(event.target.value)}
               />
               <button onClick={sendCustomerMessage}>পাঠান</button>
             </div>
@@ -1066,14 +1380,14 @@ function App() {
               type="email"
               placeholder="অ্যাডমিন ইমেইল"
               value={email}
-              onChange={e => setEmail(e.target.value)}
+              onChange={event => setEmail(event.target.value)}
             />
 
             <input
               type="password"
               placeholder="পাসওয়ার্ড"
               value={password}
-              onChange={e => setPassword(e.target.value)}
+              onChange={event => setPassword(event.target.value)}
             />
 
             <button onClick={signIn}>লগইন</button>
@@ -1089,20 +1403,20 @@ function App() {
             <>
               <section className="card">
                 <h2>অ্যাডমিন প্যানেল</h2>
+
                 <button onClick={() => {
-                  setEditingProduct(null);
-                  setProductTitle('');
-                  setProductCategory('Foods');
-                  setProductImage(null);
-                  setProductOptions('৫০০ গ্রাম:100, ১ কেজি:200');
+                  resetProductForm();
                   setPage('add-product');
                 }}>
                   + Add Product
                 </button>
+
                 <button onClick={() => setPage('admin-chat')}>
                   কাস্টমার চ্যাট ইনবক্স
                 </button>
+
                 <button onClick={loadOrders}>অর্ডার রিফ্রেশ</button>
+
                 <button className="secondary" onClick={signOut}>
                   লগআউট
                 </button>
@@ -1115,9 +1429,11 @@ function App() {
                   <div className="card" key={product.id}>
                     <b>{product.title}</b>
                     <p>{product.category}</p>
+
                     <button onClick={() => startEditProduct(product)}>
                       এডিট
                     </button>
+
                     <button
                       className="danger"
                       onClick={() => deleteProduct(product)}
@@ -1142,7 +1458,23 @@ function App() {
                     <p>পেমেন্ট: {order.payment_method}</p>
                     <p>Transaction ID: {order.transaction_id || 'নেই'}</p>
                     <p>পেমেন্ট অবস্থা: {order.payment_status}</p>
-                    <p>অর্ডার অবস্থা: {order.status}</p>
+                    <p>অর্ডার অবস্থা: {orderStatus(order.status)}</p>
+
+                    {showDeliveryEstimates(order)}
+
+                    {order.location_lat != null && order.location_lng != null ? (
+                      <p>
+                        📍 <a
+                          href={`https://www.google.com/maps?q=${order.location_lat},${order.location_lng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          কাস্টমারের লোকেশন ম্যাপে দেখুন
+                        </a>
+                      </p>
+                    ) : (
+                      <p>কাস্টমার লোকেশন দেননি।</p>
+                    )}
 
                     {(order.items || []).map((item, index) => (
                       <p key={index}>
@@ -1185,13 +1517,13 @@ function App() {
             <input
               placeholder="পণ্যের নাম"
               value={productTitle}
-              onChange={e => setProductTitle(e.target.value)}
+              onChange={event => setProductTitle(event.target.value)}
             />
 
             <label>ক্যাটাগরি</label>
             <select
               value={productCategory}
-              onChange={e => setProductCategory(e.target.value)}
+              onChange={event => setProductCategory(event.target.value)}
             >
               {categories.map(item => (
                 <option key={item} value={item}>{item}</option>
@@ -1202,7 +1534,7 @@ function App() {
             <input
               type="file"
               accept="image/*"
-              onChange={e => setProductImage(e.target.files?.[0] || null)}
+              onChange={event => setProductImage(event.target.files?.[0] || null)}
             />
 
             {productImage && <p>নির্বাচিত ছবি: {productImage.name}</p>}
@@ -1210,12 +1542,17 @@ function App() {
             <label>ওজন ও দাম লিখুন</label>
             <textarea
               value={productOptions}
-              onChange={e => setProductOptions(e.target.value)}
+              onChange={event => setProductOptions(event.target.value)}
             />
+
             <p>উদাহরণ: ৫০০ গ্রাম:280, ১ কেজি:550</p>
 
             <button onClick={saveProduct}>সংরক্ষণ করুন</button>
-            <button className="secondary" onClick={() => setPage('admin')}>
+
+            <button className="secondary" onClick={() => {
+              resetProductForm();
+              setPage('admin');
+            }}>
               ফিরে যান
             </button>
           </section>
@@ -1232,7 +1569,11 @@ function App() {
               <button
                 key={item.user_id}
                 className="secondary"
-                onClick={() => setSelectedCustomer(item.user_id)}
+                onClick={() => {
+                  setSelectedCustomer(item.user_id);
+                  setChatMessages([]);
+                  loadAdminChat(item.user_id);
+                }}
               >
                 কাস্টমার: {item.user_id.slice(0, 8)}
               </button>
@@ -1261,7 +1602,7 @@ function App() {
                   <input
                     placeholder="উত্তর লিখুন..."
                     value={chatText}
-                    onChange={e => setChatText(e.target.value)}
+                    onChange={event => setChatText(event.target.value)}
                   />
                   <button onClick={sendAdminMessage}>পাঠান</button>
                 </div>
@@ -1275,30 +1616,37 @@ function App() {
         </main>
       )}
 
-      {page !== 'login' && page !== 'admin' &&
-        page !== 'add-product' && page !== 'admin-chat' && (
-        <nav className="bottom-nav">
-          <button onClick={() => setPage('my-orders')}>
-            📦<br />My Orders
-          </button>
-          <button onClick={() => setPage('cart')}>
-            🛒<br />Cart ({cart.length})
-          </button>
-          <button onClick={() => setPage('chat')}>
-            💬<br />Chat
-          </button>
-          <button onClick={() => setPage('home')}>
-            🏠<br />Home
-          </button>
-        </nav>
-      )}
+      {page !== 'login' &&
+        page !== 'admin' &&
+        page !== 'add-product' &&
+        page !== 'admin-chat' && (
+          <nav className="bottom-nav">
+            <button onClick={() => setPage('my-orders')}>
+              📦<br />My Orders
+            </button>
+
+            <button onClick={() => setPage('cart')}>
+              🛒<br />Cart ({cart.length})
+            </button>
+
+            <button onClick={() => setPage('chat')}>
+              💬<br />Chat
+            </button>
+
+            <button onClick={() => setPage('home')}>
+              🏠<br />Home
+            </button>
+          </nav>
+        )}
 
       <footer>
         <h3>BD BUSINESS</h3>
         <p>খাবার ও পণ্যের অনলাইন দোকান</p>
+
         <a href={FACEBOOK} target="_blank" rel="noreferrer">
           Facebook Page
         </a>
+
         <p>
           <a href={whatsappLink} target="_blank" rel="noreferrer">
             WhatsApp-এ যোগাযোগ করুন
