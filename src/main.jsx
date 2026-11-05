@@ -10,10 +10,13 @@ const BKASH = '01793798125';
 const WHATSAPP = '01750041156';
 const FACEBOOK = 'https://www.facebook.com/share/1DpyTMXEc6/';
 
-const products = [
+const categories = ['Clothing', 'Oil & Soap', 'Parts', 'Foods'];
+
+const defaultProducts = [
   {
-    id: 1,
+    id: 'base-1',
     title: 'মিষ্টি',
+    category: 'Foods',
     image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?w=600',
     options: [
       { size: '৫০০ গ্রাম', price: 280 },
@@ -21,8 +24,9 @@ const products = [
     ]
   },
   {
-    id: 2,
+    id: 'base-2',
     title: 'রসমালাই',
+    category: 'Foods',
     image: 'https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=600',
     options: [
       { size: '৫০০ গ্রাম', price: 280 },
@@ -30,8 +34,9 @@ const products = [
     ]
   },
   {
-    id: 3,
+    id: 'base-3',
     title: 'সন্দেশ',
+    category: 'Foods',
     image: 'https://images.unsplash.com/photo-1589119908995-c6837fa14848?w=600',
     options: [
       { size: '৫০০ গ্রাম', price: 180 },
@@ -39,8 +44,9 @@ const products = [
     ]
   },
   {
-    id: 4,
+    id: 'base-4',
     title: 'দেশি লাল চিনি',
+    category: 'Foods',
     image: 'https://images.unsplash.com/photo-1581441363689-1f3c3c414635?w=600',
     options: [
       { size: '৫০০ গ্রাম', price: 135 },
@@ -48,8 +54,9 @@ const products = [
     ]
   },
   {
-    id: 5,
+    id: 'base-5',
     title: 'বাদামের খাজা',
+    category: 'Foods',
     image: 'https://images.unsplash.com/photo-1606313564200-e75d5e30476c?w=600',
     options: [
       { size: '২৫০ গ্রাম', price: 130 },
@@ -57,8 +64,9 @@ const products = [
     ]
   },
   {
-    id: 6,
+    id: 'base-6',
     title: 'রেশমি সনপাপড়ি',
+    category: 'Foods',
     image: 'https://images.unsplash.com/photo-1605197584325-3b1e3e9e4f6b?w=600',
     options: [
       { size: '২৫০ গ্রাম', price: 130 },
@@ -66,8 +74,9 @@ const products = [
     ]
   },
   {
-    id: 7,
+    id: 'base-7',
     title: 'খাঁটি নারিকেল তেল',
+    category: 'Foods',
     image: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=600',
     options: [
       { size: '২৫০ গ্রাম', price: 650 },
@@ -77,12 +86,23 @@ const products = [
 ];
 
 function App() {
-  const [page, setPage] = useState('home');
-  const [cart, setCart] = useState([]);
-  const [message, setMessage] = useState('');
+  const [page, setPage] = useState(
+    window.location.pathname === '/admin-login' ? 'login' : 'home'
+  );
+
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const [products, setProducts] = useState(defaultProducts);
+  const [category, setCategory] = useState('Foods');
+  const [search, setSearch] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const [cart, setCart] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [myOrders, setMyOrders] = useState([]);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -93,22 +113,24 @@ function App() {
   const [transactionId, setTransactionId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('bkash');
 
+  const [productTitle, setProductTitle] = useState('');
+  const [productCategory, setProductCategory] = useState('Foods');
+  const [productImage, setProductImage] = useState(null);
+  const [productOptions, setProductOptions] = useState('৫০০ গ্রাম:100, ১ কেজি:200');
+  const [editingProduct, setEditingProduct] = useState(null);
+
+  const [chatText, setChatText] = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatCustomers, setChatCustomers] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState('');
+
   function notify(text) {
     setMessage(text);
     window.setTimeout(() => setMessage(''), 3500);
   }
 
-  async function copyBkash() {
-    try {
-      await navigator.clipboard.writeText(BKASH);
-      notify('বিকাশ নম্বর কপি হয়েছে: ' + BKASH);
-    } catch {
-      notify('বিকাশ নম্বর: ' + BKASH);
-    }
-  }
-
   async function checkUser() {
-    if (!db) return;
+    if (!db) return null;
 
     const { data } = await db.auth.getSession();
     const current = data?.session?.user || null;
@@ -122,9 +144,11 @@ function App() {
         .maybeSingle();
 
       setIsAdmin(!!admin);
-    } else {
-      setIsAdmin(false);
+      return !!admin;
     }
+
+    setIsAdmin(false);
+    return false;
   }
 
   useEffect(() => {
@@ -133,7 +157,18 @@ function App() {
       return;
     }
 
-    checkUser();
+    async function start() {
+      const { data } = await db.auth.getSession();
+
+      if (!data?.session && window.location.pathname !== '/admin-login') {
+        const { error } = await db.auth.signInAnonymously();
+        if (error) notify('কাস্টমার লগইন তৈরি হয়নি: ' + error.message);
+      }
+
+      await checkUser();
+    }
+
+    start();
 
     const { data: listener } = db.auth.onAuthStateChange(() => {
       checkUser();
@@ -152,9 +187,16 @@ function App() {
 
     if (error) return notify(error.message);
 
-    await checkUser();
-    notify('লগইন সফল হয়েছে।');
-    setPage('home');
+    const admin = await checkUser();
+
+    if (!admin) {
+      await db.auth.signOut();
+      setIsAdmin(false);
+      return notify('এই অ্যাকাউন্ট অ্যাডমিন নয়।');
+    }
+
+    setPage('admin');
+    notify('অ্যাডমিন লগইন সফল হয়েছে।');
   }
 
   async function signOut() {
@@ -164,7 +206,177 @@ function App() {
     setUser(null);
     setIsAdmin(false);
     setPage('home');
-    notify('লগআউট হয়েছে।');
+
+    const { error } = await db.auth.signInAnonymously();
+    if (error) notify('কাস্টমার সেশন তৈরি হয়নি।');
+    else notify('লগআউট হয়েছে।');
+  }
+
+  async function loadProducts() {
+    if (!db) return;
+
+    const { data, error } = await db
+      .from('products')
+      .select('*')
+      .order('id', { ascending: true });
+
+    if (error) {
+      notify('পণ্য লোড হয়নি: ' + error.message);
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      if (isAdmin) {
+        const seed = defaultProducts.map(p => ({
+          title: p.title,
+          category: p.category,
+          image_url: p.image,
+          options: p.options
+        }));
+
+        const { data: inserted, error: seedError } = await db
+          .from('products')
+          .insert(seed)
+          .select('*');
+
+        if (!seedError && inserted?.length) {
+          setProducts(inserted.map(p => ({
+            ...p,
+            image: p.image_url
+          })));
+          return;
+        }
+      }
+
+      setProducts(defaultProducts);
+      return;
+    }
+
+    setProducts(data.map(p => ({
+      ...p,
+      image: p.image_url
+    })));
+  }
+
+  useEffect(() => {
+    loadProducts();
+  }, [isAdmin]);
+
+  async function uploadProductImage() {
+    if (!productImage) return null;
+
+    const ext = productImage.name.split('.').pop() || 'jpg';
+    const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+
+    const { error } = await db.storage
+      .from('product-images')
+      .upload(path, productImage, { upsert: true });
+
+    if (error) throw error;
+
+    const { data } = db.storage
+      .from('product-images')
+      .getPublicUrl(path);
+
+    return data.publicUrl;
+  }
+
+  function parseOptions() {
+    return productOptions.split(',').map(part => {
+      const [size, price] = part.split(':');
+      return {
+        size: size?.trim(),
+        price: Number(price?.trim())
+      };
+    }).filter(item =>
+      item.size && Number.isFinite(item.price) && item.price > 0
+    );
+  }
+
+  async function saveProduct() {
+    if (!db || !isAdmin) return notify('অ্যাডমিন অনুমতি প্রয়োজন।');
+    if (!productTitle.trim()) return notify('পণ্যের নাম লিখুন।');
+
+    const options = parseOptions();
+    if (!options.length) {
+      return notify('ওজন ও দাম সঠিকভাবে লিখুন।');
+    }
+
+    try {
+      let imageUrl = editingProduct?.image_url || editingProduct?.image || null;
+
+      if (productImage) {
+        imageUrl = await uploadProductImage();
+      }
+
+      const values = {
+        title: productTitle.trim(),
+        category: productCategory,
+        image_url: imageUrl,
+        options
+      };
+
+      let result;
+
+      if (editingProduct) {
+        result = await db
+          .from('products')
+          .update(values)
+          .eq('id', editingProduct.id);
+      } else {
+        result = await db.from('products').insert(values);
+      }
+
+      if (result.error) return notify(result.error.message);
+
+      setProductTitle('');
+      setProductCategory('Foods');
+      setProductImage(null);
+      setProductOptions('৫০০ গ্রাম:100, ১ কেজি:200');
+      setEditingProduct(null);
+
+      await loadProducts();
+      notify('পণ্য সংরক্ষণ হয়েছে।');
+    } catch (error) {
+      notify('ছবি বা পণ্য সংরক্ষণ হয়নি: ' + error.message);
+    }
+  }
+
+  function startEditProduct(product) {
+    if (String(product.id).startsWith('base-')) {
+      return notify('আগে অ্যাডমিন লগইন করে পণ্য তালিকা লোড করুন।');
+    }
+
+    setEditingProduct(product);
+    setProductTitle(product.title);
+    setProductCategory(product.category);
+    setProductOptions(
+      (product.options || [])
+        .map(o => `${o.size}:${o.price}`)
+        .join(', ')
+    );
+    setProductImage(null);
+    setPage('add-product');
+  }
+
+  async function deleteProduct(product) {
+    if (!db || !isAdmin) return;
+
+    if (String(product.id).startsWith('base-')) {
+      return notify('এই পণ্যটি এখনো ডাটাবেসে নেই।');
+    }
+
+    if (!window.confirm('এই পণ্যটি মুছে ফেলবেন?')) return;
+
+    const { error } = await db
+      .from('products')
+      .delete()
+      .eq('id', product.id);
+
+    if (error) return notify(error.message);
+
+    await loadProducts();
+    notify('পণ্য মুছে ফেলা হয়েছে।');
   }
 
   function addToCart(product, option) {
@@ -215,7 +427,7 @@ function App() {
   );
 
   async function placeOrder() {
-    if (!db) return notify('Supabase সংযোগ নেই।');
+    if (!db || !user) return notify('লগইন তৈরি হয়নি।');
     if (!cart.length) return notify('কার্ট খালি।');
 
     if (
@@ -235,6 +447,7 @@ function App() {
     }));
 
     const { error } = await db.from('market_orders').insert({
+      user_id: user.id,
       customer_name: customerName.trim(),
       phone: customerPhone.trim(),
       address: address.trim(),
@@ -261,9 +474,9 @@ function App() {
     setCustomerPhone('');
     setAddress('');
     setTransactionId('');
-    setPaymentMethod('bkash');
-    setPage('home');
+    setPage('my-orders');
 
+    await loadMyOrders();
     notify('অর্ডার জমা হয়েছে।');
   }
 
@@ -276,8 +489,20 @@ function App() {
       .order('id', { ascending: false });
 
     if (error) return notify(error.message);
-
     setOrders(data || []);
+  }
+
+  async function loadMyOrders() {
+    if (!db || !user) return;
+
+    const { data, error } = await db
+      .from('market_orders')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('id', { ascending: false });
+
+    if (error) return notify(error.message);
+    setMyOrders(data || []);
   }
 
   async function updateOrder(id, values) {
@@ -290,116 +515,209 @@ function App() {
 
     if (error) return notify(error.message);
 
-    notify('পরিবর্তন সংরক্ষণ হয়েছে।');
+    notify('অর্ডার পরিবর্তন হয়েছে।');
     loadOrders();
   }
 
+  async function loadCustomerChat() {
+    if (!db || !user) return;
+
+    const { data, error } = await db
+      .from('chat_messages')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true });
+
+    if (error) return notify(error.message);
+    setChatMessages(data || []);
+  }
+
+  async function sendCustomerMessage() {
+    if (!db || !user || !chatText.trim()) return;
+
+    const { error } = await db.from('chat_messages').insert({
+      user_id: user.id,
+      sender: 'customer',
+      message: chatText.trim()
+    });
+
+    if (error) return notify(error.message);
+
+    setChatText('');
+    loadCustomerChat();
+  }
+
+  async function loadChatCustomers() {
+    if (!db || !isAdmin) return;
+
+    const { data, error } = await db
+      .from('chat_messages')
+      .select('user_id, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) return notify(error.message);
+
+    const unique = [];
+    (data || []).forEach(row => {
+      if (!unique.some(item => item.user_id === row.user_id)) {
+        unique.push(row);
+      }
+    });
+
+    setChatCustomers(unique);
+
+    if (!selectedCustomer && unique.length) {
+      setSelectedCustomer(unique[0].user_id);
+    }
+  }
+
+  async function loadAdminChat(customerId) {
+    if (!db || !isAdmin || !customerId) return;
+
+    const { data, error } = await db
+      .from('chat_messages')
+      .select('*')
+      .eq('user_id', customerId)
+      .order('created_at', { ascending: true });
+
+    if (error) return notify(error.message);
+    setChatMessages(data || []);
+  }
+
+  async function sendAdminMessage() {
+    if (!db || !isAdmin || !selectedCustomer || !chatText.trim()) {
+      return;
+    }
+
+    const { error } = await db.from('chat_messages').insert({
+      user_id: selectedCustomer,
+      sender: 'admin',
+      message: chatText.trim()
+    });
+
+    if (error) return notify(error.message);
+
+    setChatText('');
+    loadAdminChat(selectedCustomer);
+  }
+
   useEffect(() => {
-    if (page === 'admin' && isAdmin) loadOrders();
-  }, [page, isAdmin]);
+    if (page === 'admin' && isAdmin) {
+      loadOrders();
+      loadChatCustomers();
+    }
+    if (page === 'my-orders') loadMyOrders();
+    if (page === 'chat' && !isAdmin) loadCustomerChat();
+    if (page === 'admin-chat' && isAdmin) {
+      loadChatCustomers();
+      if (selectedCustomer) loadAdminChat(selectedCustomer);
+    }
+  }, [page, isAdmin, user, selectedCustomer]);
 
   const whatsappLink =
     `https://wa.me/88${WHATSAPP}?text=${encodeURIComponent(
       'BD BUSINESS-এ স্বাগতম। পণ্য সম্পর্কে জানতে চাই।'
     )}`;
 
+  const visibleProducts = products.filter(product => {
+    const matchesCategory = product.category === category;
+    const matchesSearch = product.title
+      .toLowerCase()
+      .includes(search.toLowerCase());
+
+    return matchesCategory && matchesSearch;
+  });
+
   return (
     <>
       <style>{`
         * { box-sizing: border-box; }
-
         body {
           margin: 0;
           font-family: Arial, sans-serif;
           background: #f4f6f8;
           color: #222;
+          padding-bottom: 75px;
         }
-
-        header {
-          background: #073b32;
-          color: white;
-          padding: 25px 12px;
-          text-align: center;
-        }
-
-        header h1 {
-          margin: 0 0 8px;
-          font-size: 30px;
-        }
-
-        .top-buttons {
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: center;
-          gap: 10px;
-          padding: 15px 10px;
-          background: white;
-        }
-
-        .top-buttons a,
-        .top-buttons button {
-          display: inline-block;
-          text-decoration: none;
-          border: 0;
-          border-radius: 8px;
-          padding: 13px 17px;
-          color: white;
-          font-size: 15px;
-          font-weight: bold;
-          cursor: pointer;
-          margin: 0;
-        }
-
-        .bkash { background: #d92355; }
-        .facebook { background: #1877f2; }
-        .whatsapp { background: #168b48; }
-
-        nav {
-          display: flex;
-          flex-wrap: wrap;
-          justify-content: center;
-          gap: 6px;
-          padding: 12px;
-          background: white;
-        }
-
         button {
           border: 0;
           border-radius: 7px;
-          padding: 11px 14px;
+          padding: 10px 12px;
           background: #087b58;
           color: white;
           cursor: pointer;
           margin: 3px;
         }
-
         button.secondary { background: #34495e; }
         button.danger { background: #bd3434; }
-
-        main {
-          max-width: 1000px;
-          margin: auto;
-          padding: 15px;
+        header {
+          background: #073b32;
+          color: white;
+          padding: 14px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          position: sticky;
+          top: 0;
+          z-index: 10;
         }
-
+        header h1 { margin: 0; font-size: 23px; }
+        .header-button {
+          font-size: 24px;
+          background: transparent;
+          padding: 5px 10px;
+        }
+        .menu {
+          position: absolute;
+          top: 55px;
+          left: 8px;
+          background: white;
+          color: #222;
+          padding: 10px;
+          border-radius: 10px;
+          box-shadow: 0 3px 12px #0003;
+          z-index: 20;
+        }
+        .menu a {
+          display: block;
+          padding: 10px;
+          color: #073b32;
+          text-decoration: none;
+        }
+        .search-box { padding: 10px; background: white; }
+        main { max-width: 1000px; margin: auto; padding: 12px; }
         .card {
           background: white;
           border-radius: 12px;
-          padding: 15px;
-          margin: 12px 0;
+          padding: 13px;
+          margin: 10px 0;
           box-shadow: 0 2px 8px #00000012;
+          min-width: 0;
         }
-
         .grid {
           display: grid;
-          grid-template-columns: repeat(
-            auto-fit,
-            minmax(220px, 1fr)
-          );
-          gap: 12px;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 9px;
         }
-
-        input, textarea {
+        .product-image {
+          width: 100%;
+          height: 130px;
+          object-fit: cover;
+          border-radius: 8px;
+          background: #eee;
+        }
+        .product-card h3 {
+          font-size: 16px;
+          margin: 8px 0;
+          overflow-wrap: anywhere;
+        }
+        .price {
+          color: #087b58;
+          font-size: 14px;
+          font-weight: bold;
+          margin: 7px 0;
+        }
+        input, textarea, select {
           display: block;
           width: 100%;
           padding: 12px;
@@ -407,122 +725,157 @@ function App() {
           border-radius: 7px;
           margin: 9px 0 14px;
           font-size: 16px;
+          background: white;
         }
-
-        input[type="radio"] {
-          display: inline-block;
+        input[type="radio"], input[type="file"] {
           width: auto;
-          margin: 8px;
+          display: inline-block;
         }
-
         textarea { min-height: 75px; }
-
-        .product-image {
-          width: 100%;
-          height: 180px;
-          object-fit: cover;
-          border-radius: 9px;
-          background: #eee;
-        }
-
-        .price {
-          color: #087b58;
-          font-size: 19px;
-          font-weight: bold;
-        }
-
+        h2 { color: #073b32; font-size: 21px; }
         .message {
           position: sticky;
-          top: 0;
+          top: 55px;
           background: #fff2c7;
-          padding: 12px;
+          padding: 11px;
           text-align: center;
-          z-index: 5;
+          z-index: 9;
         }
-
-        h2 { color: #073b32; }
-
+        .categories {
+          display: flex;
+          overflow-x: auto;
+          gap: 8px;
+          background: white;
+          padding: 10px;
+        }
+        .categories button {
+          white-space: nowrap;
+          background: #e7efec;
+          color: #073b32;
+        }
+        .categories button.active {
+          background: #087b58;
+          color: white;
+        }
+        .bottom-nav {
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          background: white;
+          border-top: 1px solid #ddd;
+          z-index: 15;
+          padding: 5px 0;
+        }
+        .bottom-nav button {
+          background: transparent;
+          color: #073b32;
+          font-size: 12px;
+          padding: 7px 2px;
+        }
+        .chat-message {
+          padding: 10px;
+          margin: 7px 0;
+          border-radius: 10px;
+          max-width: 85%;
+          overflow-wrap: anywhere;
+        }
+        .customer-message {
+          background: #d9f5e5;
+          margin-left: auto;
+        }
+        .admin-message { background: #eee; }
+        .row {
+          display: flex;
+          gap: 5px;
+          align-items: center;
+        }
+        .row input { flex: 1; min-width: 0; }
         footer {
           text-align: center;
-          padding: 25px;
+          padding: 20px;
           background: #073b32;
           color: white;
           margin-top: 25px;
         }
-
         footer a { color: white; }
+        @media (min-width: 650px) {
+          .product-image { height: 190px; }
+          .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
       `}</style>
 
       <header>
+        <button
+          className="header-button"
+          onClick={() => setMenuOpen(!menuOpen)}
+        >
+          ⋮
+        </button>
+
         <h1>BD BUSINESS</h1>
-        <div>খাঁটি খাবার ও মিষ্টির অনলাইন দোকান</div>
+
+        <button
+          className="header-button"
+          onClick={() => setSearchOpen(!searchOpen)}
+        >
+          ⌕
+        </button>
+
+        {menuOpen && (
+          <div className="menu">
+            <a href={whatsappLink} target="_blank" rel="noreferrer">
+              WhatsApp
+            </a>
+            <a href={FACEBOOK} target="_blank" rel="noreferrer">
+              Facebook Page
+            </a>
+          </div>
+        )}
       </header>
+
+      {searchOpen && (
+        <div className="search-box">
+          <input
+            placeholder="পণ্য খুঁজুন..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+      )}
 
       {message && <div className="message">{message}</div>}
 
-      <section className="top-buttons">
-        <button className="bkash" onClick={copyBkash}>
-          বিকাশ পেমেন্ট
-        </button>
+      {page === 'home' && (
+        <>
+          <div className="categories">
+            {categories.map(item => (
+              <button
+                key={item}
+                className={category === item ? 'active' : ''}
+                onClick={() => setCategory(item)}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
 
-        <a
-          className="facebook"
-          href={FACEBOOK}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Facebook Page
-        </a>
-
-        <a
-          className="whatsapp"
-          href={whatsappLink}
-          target="_blank"
-          rel="noreferrer"
-        >
-          WhatsApp
-        </a>
-      </section>
-
-      <nav>
-        <button onClick={() => setPage('home')}>হোম</button>
-        <button onClick={() => setPage('cart')}>
-          কার্ট ({cart.length})
-        </button>
-        <button onClick={() => setPage('login')}>
-          অ্যাডমিন লগইন
-        </button>
-
-        {isAdmin && (
-          <button onClick={() => setPage('admin')}>
-            অ্যাডমিন অর্ডার
-          </button>
-        )}
-
-        {user && (
-          <button className="secondary" onClick={signOut}>
-            লগআউট
-          </button>
-        )}
-      </nav>
-
-      <main>
-        {page === 'home' && (
-          <>
+          <main>
             <section className="card">
               <h2>স্বাগতম BD BUSINESS-এ</h2>
-              <p>আমাদের খাবার ও মিষ্টির পণ্য বেছে নিন।</p>
-              <p>পছন্দের পণ্য কার্টে যোগ করে অর্ডার করুন।</p>
+              <p>পছন্দের পণ্য বেছে নিয়ে অর্ডার করুন।</p>
             </section>
 
-            <h2>আমাদের পণ্য</h2>
+            <h2>{category}</h2>
 
             <div className="grid">
-              {products.map(product => (
-                <div className="card" key={product.id}>
+              {visibleProducts.map(product => (
+                <div className="card product-card" key={product.id}>
                   <img
                     className="product-image"
-                    src={product.image}
+                    src={product.image || 'https://placehold.co/600x400?text=BD+BUSINESS'}
                     alt={product.title}
                     onError={e => {
                       e.currentTarget.src =
@@ -532,28 +885,35 @@ function App() {
 
                   <h3>{product.title}</h3>
 
-                  {product.options.map(option => (
-                    <div key={option.size}>
+                  {(product.options || []).map((option, index) => (
+                    <div key={index}>
                       <p className="price">
                         {option.size} — ৳{option.price}
                       </p>
-
                       <button
                         onClick={() => addToCart(product, option)}
                       >
-                        কার্টে যোগ করুন
+                        কার্টে যোগ
                       </button>
                     </div>
                   ))}
                 </div>
               ))}
             </div>
-          </>
-        )}
 
-        {page === 'cart' && (
+            {!visibleProducts.length && (
+              <section className="card">
+                এই ক্যাটাগরিতে এখনো কোনো পণ্য নেই।
+              </section>
+            )}
+          </main>
+        </>
+      )}
+
+      {page === 'cart' && (
+        <main>
           <section className="card">
-            <h2>তোমার কার্ট</h2>
+            <h2>কার্ট</h2>
 
             {!cart.length && <p>কার্ট খালি।</p>}
 
@@ -561,16 +921,10 @@ function App() {
               <div className="card" key={item.cartId}>
                 <b>{item.title} — {item.size}</b>
                 <p>৳{item.price} × {item.quantity}</p>
-
-                <button
-                  onClick={() => changeQuantity(item.cartId, -1)}
-                >
+                <button onClick={() => changeQuantity(item.cartId, -1)}>
                   −
                 </button>
-
-                <button
-                  onClick={() => changeQuantity(item.cartId, 1)}
-                >
+                <button onClick={() => changeQuantity(item.cartId, 1)}>
                   +
                 </button>
               </div>
@@ -606,33 +960,14 @@ function App() {
 
                 {paymentMethod === 'bkash' && (
                   <>
-                    <h2>বিকাশ নম্বর: {BKASH}</h2>
-
-                    <button
-                      className="bkash"
-                      onClick={copyBkash}
-                    >
-                      বিকাশ নম্বর কপি করুন
-                    </button>
-
-                    <p>
-                      বিকাশে টাকা পাঠানোর পর Transaction ID লিখুন।
-                    </p>
-
+                    <h3>বিকাশ নম্বর: {BKASH}</h3>
+                    <p>টাকা পাঠানোর পর Transaction ID লিখুন।</p>
                     <input
-                      placeholder="বিকাশ Transaction ID"
+                      placeholder="Transaction ID"
                       value={transactionId}
-                      onChange={e =>
-                        setTransactionId(e.target.value)
-                      }
+                      onChange={e => setTransactionId(e.target.value)}
                     />
                   </>
-                )}
-
-                {paymentMethod === 'cod' && (
-                  <p>
-                    পণ্য হাতে পাওয়ার পর টাকা পরিশোধ করবেন।
-                  </p>
                 )}
 
                 <h2>অর্ডারের তথ্য</h2>
@@ -655,15 +990,75 @@ function App() {
                   onChange={e => setAddress(e.target.value)}
                 />
 
-                <button onClick={placeOrder}>
-                  অর্ডার জমা দিন
-                </button>
+                <button onClick={placeOrder}>অর্ডার জমা দিন</button>
               </>
             )}
           </section>
-        )}
+        </main>
+      )}
 
-        {page === 'login' && (
+      {page === 'my-orders' && (
+        <main>
+          <section className="card">
+            <h2>আমার অর্ডার</h2>
+            <button onClick={loadMyOrders}>রিফ্রেশ</button>
+
+            {!myOrders.length && <p>আপনার কোনো অর্ডার পাওয়া যায়নি।</p>}
+
+            {myOrders.map(order => (
+              <div className="card" key={order.id}>
+                <b>অর্ডার #{order.id}</b>
+                <p>মোট: ৳{order.total}</p>
+                <p>অবস্থা: {order.status}</p>
+                <p>ঠিকানা: {order.address}</p>
+                {(order.items || []).map((item, index) => (
+                  <p key={index}>
+                    {item.title} ({item.size}) × {item.quantity}
+                  </p>
+                ))}
+              </div>
+            ))}
+          </section>
+        </main>
+      )}
+
+      {page === 'chat' && (
+        <main>
+          <section className="card">
+            <h2>কাস্টমার চ্যাট</h2>
+            <button onClick={loadCustomerChat}>মেসেজ রিফ্রেশ</button>
+
+            <div>
+              {chatMessages.map(item => (
+                <div
+                  key={item.id}
+                  className={
+                    'chat-message ' +
+                    (item.sender === 'customer'
+                      ? 'customer-message'
+                      : 'admin-message')
+                  }
+                >
+                  <b>{item.sender === 'admin' ? 'অ্যাডমিন' : 'আপনি'}</b>
+                  <div>{item.message}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="row">
+              <input
+                placeholder="মেসেজ লিখুন..."
+                value={chatText}
+                onChange={e => setChatText(e.target.value)}
+              />
+              <button onClick={sendCustomerMessage}>পাঠান</button>
+            </div>
+          </section>
+        </main>
+      )}
+
+      {page === 'login' && (
+        <main>
           <section className="card">
             <h2>অ্যাডমিন লগইন</h2>
 
@@ -683,17 +1078,58 @@ function App() {
 
             <button onClick={signIn}>লগইন</button>
           </section>
-        )}
+        </main>
+      )}
 
-        {page === 'admin' && (
-          <section className="card">
-            {!isAdmin ? (
-              <p>অ্যাডমিন অনুমতি প্রয়োজন।</p>
-            ) : (
-              <>
+      {page === 'admin' && (
+        <main>
+          {!isAdmin ? (
+            <section className="card">অ্যাডমিন অনুমতি প্রয়োজন।</section>
+          ) : (
+            <>
+              <section className="card">
+                <h2>অ্যাডমিন প্যানেল</h2>
+                <button onClick={() => {
+                  setEditingProduct(null);
+                  setProductTitle('');
+                  setProductCategory('Foods');
+                  setProductImage(null);
+                  setProductOptions('৫০০ গ্রাম:100, ১ কেজি:200');
+                  setPage('add-product');
+                }}>
+                  + Add Product
+                </button>
+                <button onClick={() => setPage('admin-chat')}>
+                  কাস্টমার চ্যাট ইনবক্স
+                </button>
+                <button onClick={loadOrders}>অর্ডার রিফ্রেশ</button>
+                <button className="secondary" onClick={signOut}>
+                  লগআউট
+                </button>
+              </section>
+
+              <section className="card">
+                <h2>পণ্য পরিচালনা</h2>
+
+                {products.map(product => (
+                  <div className="card" key={product.id}>
+                    <b>{product.title}</b>
+                    <p>{product.category}</p>
+                    <button onClick={() => startEditProduct(product)}>
+                      এডিট
+                    </button>
+                    <button
+                      className="danger"
+                      onClick={() => deleteProduct(product)}
+                    >
+                      ডিলিট
+                    </button>
+                  </div>
+                ))}
+              </section>
+
+              <section className="card">
                 <h2>অর্ডার তালিকা</h2>
-
-                <button onClick={loadOrders}>রিফ্রেশ</button>
 
                 {!orders.length && <p>কোনো অর্ডার নেই।</p>}
 
@@ -703,22 +1139,10 @@ function App() {
                     <p>ফোন: {order.phone}</p>
                     <p>ঠিকানা: {order.address}</p>
                     <p>মোট: ৳{order.total}</p>
-
-                    <p>
-                      পেমেন্ট পদ্ধতি: {order.payment_method}
-                    </p>
-
-                    <p>
-                      Transaction ID: {order.transaction_id || 'নেই'}
-                    </p>
-
-                    <p>
-                      পেমেন্ট অবস্থা: {order.payment_status}
-                    </p>
-
+                    <p>পেমেন্ট: {order.payment_method}</p>
+                    <p>Transaction ID: {order.transaction_id || 'নেই'}</p>
+                    <p>পেমেন্ট অবস্থা: {order.payment_status}</p>
                     <p>অর্ডার অবস্থা: {order.status}</p>
-
-                    <b>পণ্য:</b>
 
                     {(order.items || []).map((item, index) => (
                       <p key={index}>
@@ -726,49 +1150,155 @@ function App() {
                       </p>
                     ))}
 
-                    <button
-                      onClick={() =>
-                        updateOrder(order.id, {
-                          payment_status:
-                            order.payment_method === 'bKash Personal'
-                              ? 'verified'
-                              : 'cash_on_delivery',
-                          status: 'confirmed'
-                        })
-                      }
-                    >
-                      অর্ডার নিশ্চিত করুন
+                    <button onClick={() => updateOrder(order.id, {
+                      payment_status:
+                        order.payment_method === 'bKash Personal'
+                          ? 'verified'
+                          : 'cash_on_delivery',
+                      status: 'confirmed'
+                    })}>
+                      অর্ডার নিশ্চিত
                     </button>
 
                     <button
                       className="danger"
-                      onClick={() =>
-                        updateOrder(order.id, {
-                          status: 'cancelled'
-                        })
-                      }
+                      onClick={() => updateOrder(order.id, {
+                        status: 'cancelled'
+                      })}
                     >
-                      অর্ডার বাতিল
+                      বাতিল
                     </button>
                   </div>
                 ))}
+              </section>
+            </>
+          )}
+        </main>
+      )}
+
+      {page === 'add-product' && (
+        <main>
+          <section className="card">
+            <h2>{editingProduct ? 'পণ্য এডিট' : 'নতুন পণ্য যোগ করুন'}</h2>
+
+            <label>পণ্যের নাম</label>
+            <input
+              placeholder="পণ্যের নাম"
+              value={productTitle}
+              onChange={e => setProductTitle(e.target.value)}
+            />
+
+            <label>ক্যাটাগরি</label>
+            <select
+              value={productCategory}
+              onChange={e => setProductCategory(e.target.value)}
+            >
+              {categories.map(item => (
+                <option key={item} value={item}>{item}</option>
+              ))}
+            </select>
+
+            <label>গ্যালারি থেকে ছবি নির্বাচন করুন</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={e => setProductImage(e.target.files?.[0] || null)}
+            />
+
+            {productImage && <p>নির্বাচিত ছবি: {productImage.name}</p>}
+
+            <label>ওজন ও দাম লিখুন</label>
+            <textarea
+              value={productOptions}
+              onChange={e => setProductOptions(e.target.value)}
+            />
+            <p>উদাহরণ: ৫০০ গ্রাম:280, ১ কেজি:550</p>
+
+            <button onClick={saveProduct}>সংরক্ষণ করুন</button>
+            <button className="secondary" onClick={() => setPage('admin')}>
+              ফিরে যান
+            </button>
+          </section>
+        </main>
+      )}
+
+      {page === 'admin-chat' && (
+        <main>
+          <section className="card">
+            <h2>অ্যাডমিন চ্যাট ইনবক্স</h2>
+            <button onClick={loadChatCustomers}>ইনবক্স রিফ্রেশ</button>
+
+            {chatCustomers.map(item => (
+              <button
+                key={item.user_id}
+                className="secondary"
+                onClick={() => setSelectedCustomer(item.user_id)}
+              >
+                কাস্টমার: {item.user_id.slice(0, 8)}
+              </button>
+            ))}
+
+            {selectedCustomer && (
+              <>
+                <p>নির্বাচিত কাস্টমার: {selectedCustomer.slice(0, 12)}</p>
+
+                {chatMessages.map(item => (
+                  <div
+                    key={item.id}
+                    className={
+                      'chat-message ' +
+                      (item.sender === 'admin'
+                        ? 'customer-message'
+                        : 'admin-message')
+                    }
+                  >
+                    <b>{item.sender === 'admin' ? 'অ্যাডমিন' : 'কাস্টমার'}</b>
+                    <div>{item.message}</div>
+                  </div>
+                ))}
+
+                <div className="row">
+                  <input
+                    placeholder="উত্তর লিখুন..."
+                    value={chatText}
+                    onChange={e => setChatText(e.target.value)}
+                  />
+                  <button onClick={sendAdminMessage}>পাঠান</button>
+                </div>
               </>
             )}
+
+            <button className="secondary" onClick={() => setPage('admin')}>
+              অ্যাডমিন প্যানেলে ফিরুন
+            </button>
           </section>
-        )}
-      </main>
+        </main>
+      )}
+
+      {page !== 'login' && page !== 'admin' &&
+        page !== 'add-product' && page !== 'admin-chat' && (
+        <nav className="bottom-nav">
+          <button onClick={() => setPage('my-orders')}>
+            📦<br />My Orders
+          </button>
+          <button onClick={() => setPage('cart')}>
+            🛒<br />Cart ({cart.length})
+          </button>
+          <button onClick={() => setPage('chat')}>
+            💬<br />Chat
+          </button>
+          <button onClick={() => setPage('home')}>
+            🏠<br />Home
+          </button>
+        </nav>
+      )}
 
       <footer>
         <h3>BD BUSINESS</h3>
-        <p>খাবার ও মিষ্টির অনলাইন দোকান</p>
-        <p>বিকাশ: {BKASH}</p>
-
-        <p>
-          <a href={FACEBOOK} target="_blank" rel="noreferrer">
-            Facebook Page
-          </a>
-        </p>
-
+        <p>খাবার ও পণ্যের অনলাইন দোকান</p>
+        <a href={FACEBOOK} target="_blank" rel="noreferrer">
+          Facebook Page
+        </a>
         <p>
           <a href={whatsappLink} target="_blank" rel="noreferrer">
             WhatsApp-এ যোগাযোগ করুন
