@@ -204,132 +204,31 @@ function App() {
     const { data, error } = await db.from("seller_applications").select("user_id,contact_name,phone,seller_code,status").eq("status", "approved").order("created_at", { ascending: false });
     if (!error) setApprovedSellers(data || []);
   }
-async function loadSellerOrders() {
-    if (!db || !user || isAdmin) return;
 
-    const { data: application } = await db
-      .from("seller_applications")
-      .select("*")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (!application || application.status !== "approved") {
-      setSellerOrders([]);
-      return;
-    }
-
-    const { data, error } = await db
-      .from("market_orders")
-      .select("id,customer_name,phone,address,total,status,items,created_at,voucher_amount,rider_code,rider_code_verified_at")
-      .eq("assigned_seller_id", user.id)
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      notify(error.message);
-      return;
-    }
-
-    setSellerOrders(data || []);
-  }
-
-  function notify(text) {
-    setMessage(text);
-
-    window.setTimeout(() => {
-      setMessage("");
-    }, 4000);
-  }
-
-  async function copyBkash() {
-    try {
-      await navigator.clipboard.writeText(BKASH_NUMBER);
-      notify("বিকাশ নম্বর কপি হয়েছে।");
-    } catch {
-      notify("নম্বর কপি করা যায়নি।");
-    }
-  }
-
-  async function submitSellerApplication(event) {
-    event.preventDefault();
-
-    if (!db) {
-      notify("Supabase সেটিংস যোগ করা হয়নি।");
-      return;
-    }
-
-    if (!regImage) {
-      notify("পণ্যের ছবি নির্বাচন করুন।");
-      return;
-    }
-
-    setBusy(true);
-
-    try {
-      const { data, error } = await db.auth.signUp({
-        email: reg.email.trim(),
-        password: reg.password,
-        options: {
-          data: {
-            first_name: reg.first_name,
-            shop_name: reg.shop_name,
-            phone: reg.phone,
-            product_name: reg.product_name,
-            product_details: reg.product_details
-          }
-        }
-      });
-
-      if (error) throw error;
-
-      if (!data.user) {
-        throw new Error("নিবন্ধন সম্পন্ন হয়নি।");
+  async function loadSellerOrders() {
+    if (!db || !user || isAdmin || sellerApp?.status !== "approved") return;
+    const { data, error } = await db.from("market_orders").select("id,customer_name,phone,address,total,status,items,created_at,voucher_amount,rider_code,rider_code_verified_at")
+      .eq("assigned_seller_id", user.id).order("created_at", { ascending: false });
+    if (!error) setSellerOrders(data || []);
+    }setUser(current);
+      let { data: application, error: appError } = await db.from("seller_applications").select("*").eq("user_id", current.id).maybeSingle();
+      if (appError) throw appError;
+      if (!application && current.user_metadata?.first_name) {
+        const meta = current.user_metadata;
+        const { data: inserted, error: insertError } = await db.from("seller_applications").insert({
+          user_id: current.id, shop_name: meta.shop_name || meta.first_name || "সেলার শপ",
+          contact_name: meta.first_name, phone: meta.phone || "", description: `পণ্য: ${meta.product_name || ""}\nবিস্তারিত: ${meta.product_details || ""}`, status: "pending"
+        }).select().single();
+        if (insertError) throw insertError;
+        application = inserted;
       }
-
-      const imageUrl = await uploadImage(regImage, data.user.id);
-
-      const { error: insertError } = await db
-        .from("seller_applications")
-        .insert({
-          user_id: data.user.id,
-          shop_name: reg.shop_name,
-          contact_name: reg.first_name,
-          email: reg.email.trim(),
-          phone: reg.phone,
-          product_name: reg.product_name,
-          product_image: imageUrl,
-          description: reg.product_details,
-          status: "pending"
-        });
-
-      if (insertError) throw insertError;
-
-      setSellerApp({
-        shop_name: reg.shop_name,
-        contact_name: reg.first_name,
-        status: "pending"
-      });
-
-      setPage("seller-status");
-      notify("বিক্রেতার আবেদন জমা হয়েছে।");
-
-    } catch (error) {
-      notify(error.message || "নিবন্ধন করা যায়নি।");
-    } finally {
-      setBusy(false);
-    }
+      setSellerApp(application || null);
+      if (!application) { setPage("seller-register"); notify("এই ইমেইলে বিক্রেতার আবেদন পাওয়া যায়নি।"); }
+      else if (application.status === "approved") { setPage("seller-dashboard"); await loadMySellerProducts(); }
+      else setPage("seller-status");
+    } catch (error) { notify(error.message || "লগইন করা যায়নি।"); }
+    finally { setBusy(false); }
   }
-
-  async function sellerSignIn(event) {
-    event.preventDefault();
-
-    if (!db) {
-      notify("Supabase সেটিংস যোগ করা হয়নি।");
-      return;
-    }
-
-    notify("Seller ID দিয়ে লগইনের জন্য নিরাপদ সার্ভার-সাইড যাচাই যুক্ত করতে হবে।");
-}
-  
 
   async function saveSellerProduct(event) {
     event.preventDefault();
