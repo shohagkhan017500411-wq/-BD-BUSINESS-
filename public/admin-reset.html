@@ -1,45 +1,51 @@
-
 <!DOCTYPE html>
 <html lang="bn">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BD ADMIN Password Reset</title>
+  <title>BD ADMIN - Password Reset</title>
   <style>
+    * { box-sizing: border-box; }
     body {
       font-family: Arial, sans-serif;
-      background: #f1f5f9;
+      background: #eef2f7;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
       margin: 0;
+      padding: 20px;
     }
     .card {
       background: white;
       padding: 25px;
-      border-radius: 15px;
-      width: 85%;
-      max-width: 380px;
-      box-shadow: 0 4px 20px #0002;
-    }
-    h2 { text-align: center; color: #123; }
-    input, button {
-      box-sizing: border-box;
+      border-radius: 16px;
       width: 100%;
-      padding: 13px;
-      margin-top: 12px;
-      border-radius: 8px;
+      max-width: 400px;
+      box-shadow: 0 5px 25px #0002;
+    }
+    h2, h3 { text-align: center; }
+    h2 { color: #087f5b; }
+    input, button {
+      width: 100%;
+      padding: 14px;
+      margin-top: 14px;
+      border-radius: 9px;
       font-size: 16px;
     }
     input { border: 1px solid #ccc; }
     button {
-      border: 0;
+      border: none;
       background: #087f5b;
       color: white;
       font-weight: bold;
     }
-    #message { text-align: center; margin-top: 15px; }
+    button:disabled { opacity: .6; }
+    #message {
+      text-align: center;
+      margin-top: 16px;
+      overflow-wrap: anywhere;
+    }
   </style>
 </head>
 <body>
@@ -53,21 +59,27 @@
         type="password"
         placeholder="নতুন পাসওয়ার্ড"
         minlength="8"
+        autocomplete="new-password"
         required
       >
+
       <input
         id="confirmPassword"
         type="password"
         placeholder="পাসওয়ার্ড আবার লিখুন"
         minlength="8"
+        autocomplete="new-password"
         required
       >
+
       <button id="submitBtn" type="submit">
         পাসওয়ার্ড পরিবর্তন করুন
       </button>
     </form>
 
-    <p id="message"></p>
+    <p id="message">
+      Gmail থেকে পাওয়া রিসেট লিংক দিয়ে এই পেজ খুলুন।
+    </p>
   </div>
 
   <script type="module">
@@ -77,8 +89,8 @@
     const SUPABASE_URL =
       "https://xqefplcyblzztuchdxpo.supabase.co";
 
-    // এখানে Supabase-এর public anon/publishable key বসবে।
-    const SUPABASE_KEY = "PASTE_PUBLIC_ANON_KEY_HERE";
+    const SUPABASE_KEY =
+      "sb_publishable_VtKcNjnEM75QwAl24DuWHg_wVh5iBf2";
 
     const supabase = createClient(
       SUPABASE_URL,
@@ -89,37 +101,65 @@
     const message = document.getElementById("message");
     const button = document.getElementById("submitBtn");
 
+    async function checkRecoverySession() {
+      const params = new URLSearchParams(location.search);
+      const code = params.get("code");
+
+      if (code) {
+        const { error } =
+          await supabase.auth.exchangeCodeForSession(code);
+
+        if (error) {
+          message.textContent =
+            "রিসেট লিংক গ্রহণ করা যায়নি। নতুন লিংক নিন।";
+        }
+      }
+
+      const { data } = await supabase.auth.getSession();
+
+      if (!data.session) {
+        message.textContent =
+          "Gmail-এর বৈধ রিসেট লিংক দিয়ে এই পেজ খুলুন।";
+      }
+    }
+
+    await checkRecoverySession();
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
 
       const password =
         document.getElementById("password").value;
+
       const confirmPassword =
         document.getElementById("confirmPassword").value;
 
       if (password.length < 8) {
-        message.textContent = "কমপক্ষে ৮ অক্ষরের পাসওয়ার্ড দিন।";
+        message.textContent =
+          "কমপক্ষে ৮ অক্ষরের পাসওয়ার্ড দিন।";
         return;
       }
 
       if (password !== confirmPassword) {
-        message.textContent = "দুটি পাসওয়ার্ড মিলছে না।";
+        message.textContent =
+          "দুটি পাসওয়ার্ড মিলছে না।";
         return;
       }
 
       button.disabled = true;
-      message.textContent = "অপেক্ষা করুন...";
+      message.textContent = "পাসওয়ার্ড পরিবর্তন হচ্ছে...";
 
-      const { error } = await supabase.auth.updateUser({
-        password: password
-      });
+      const { data, error } =
+        await supabase.auth.updateUser({
+          password: password
+        });
 
       if (error) {
         message.textContent =
-          "সমস্যা হয়েছে: " + error.message;
-      } else {
+          "সমস্যা হয়েছে: " + error.message;
+      } else if (data.user) {
         message.textContent =
-          "পাসওয়ার্ড পরিবর্তন হয়েছে। এখন BD ADMIN APK-তে লগইন করুন।";
+          "পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে। এখন BD ADMIN APK-তে লগইন করুন।";
         form.reset();
       }
 
