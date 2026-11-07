@@ -1,0 +1,150 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: #f1f5f2;
+  color: #183b2b;
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  background: white;
+  padding: 30px 22px;
+  border-radius: 18px;
+  box-shadow: 0 5px 25px #00000012;
+  text-align: center;
+}
+
+.logo {
+  width: 65px;
+  height: 65px;
+  margin: auto;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: #174c35;
+  color: white;
+  font-size: 25px;
+  font-weight: bold;
+}
+
+.login-card h1 {
+  margin-bottom: 5px;
+}
+
+.login-card form {
+  text-align: left;
+  margin-top: 25px;
+}
+
+label {
+  display: block;
+  margin: 15px 0 7px;
+  font-weight: bold;
+}
+
+input {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #ccd8d0;
+  border-radius: 9px;
+  font-size: 16px;
+}
+
+button {
+  border: 0;
+  border-radius: 9px;
+  padding: 13px 16px;
+  background: #17623f;
+  color: white;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.login-card form button {
+  width: 100%;
+  margin-top: 22px;
+}
+
+button:disabled {
+  opacity: 0.6;
+}
+
+.message {
+  color: #bd3030;
+  font-size: 14px;
+}
+
+.login-card small {
+  display: block;
+  margin-top: 20px;
+  color: #68776d;
+}
+
+.dashboard header {
+  background: #174c35;
+  color: white;
+  padding: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dashboard header h2 {
+  margin: 0 0 5px;
+}
+
+.logout {
+  background: white;
+  color: #174c35;
+}
+
+.dashboard nav {
+  display: flex;
+  gap: 9px;
+  padding: 14px;
+  overflow-x: auto;
+  background: white;
+}
+
+.dashboard nav button {
+  flex-shrink: 0;
+  background: #e8f0eb;
+  color: #174c35;
+}
+
+.dashboard nav button.selected {
+  background: #174c35;
+  color: white;
+}
+
+.content {
+  margin: 15px;
+  padding: 22px;
+  background: white;
+  border-radius: 14px;
+  min-height: 250px;
+}
+
+@media (max-width: 480px) {
+  .dashboard header {
+    padding: 14px;
+  }
+
+  .content {
+    margin: 10px;
+    padding: 17px;
+  }
+}
