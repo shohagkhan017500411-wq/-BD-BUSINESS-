@@ -5,10 +5,9 @@ import "./style.css";
 
 const URL = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
 const db = URL && KEY ? createClient(URL, KEY) : null;
 
-const sections = [
+const businessSections = [
   "হোম ড্যাশবোর্ড",
   "অ্যাড প্রোডাক্ট",
   "প্রোডাক্ট ভাউচার",
@@ -22,6 +21,30 @@ const sections = [
   "Ad Management",
   "AI Ad Creator",
   "Banner Management"
+];
+
+const gameSections = [
+  "Game Dashboard",
+  "Player Management",
+  "Character Management",
+  "Outfit & Skin Management",
+  "Weapon Control",
+  "Map Management",
+  "Game Mode Management",
+  "Room & Match Management",
+  "Diamond & Coin Management",
+  "Game Shop Management",
+  "Event & Mission Management",
+  "Rank & Leaderboard Management",
+  "Chat & Support Management",
+  "Notification Management",
+  "Intro & Lobby Management",
+  "Game Update Management",
+  "Security & Reports Management",
+  "Game Settings Management",
+  "Emote Management",
+  "Animation Management",
+  "Diamond Send Management"
 ];
 
 function App() {
@@ -44,10 +67,7 @@ function App() {
     setMessage("");
 
     const { data, error } =
-      await db.auth.signInWithPassword({
-        email,
-        password
-      });
+      await db.auth.signInWithPassword({ email, password });
 
     if (error) {
       setMessage("লগইন ব্যর্থ হয়েছে। তথ্য যাচাই করুন।");
@@ -81,7 +101,7 @@ function App() {
       <main className="login-page">
         <section className="login-card">
           <div className="logo">BD</div>
-          <h1>বিডি এডমিট</h1>
+          <h1>বিডি এডমিন</h1>
           <p>Admin Login</p>
 
           <form onSubmit={login}>
@@ -115,39 +135,80 @@ function App() {
     );
   }
 
+  const isGame = gameSections.includes(active);
+
   return (
     <div className="dashboard">
       <header>
         <div>
-          <h2>বিডি এডমিট</h2>
+          <h2>বিডি এডমিন</h2>
           <small>Admin Control Panel</small>
         </div>
+
         <button className="logout" onClick={logout}>
           লগআউট
         </button>
       </header>
 
-      <nav>
-        {sections.map(section => (
-          <button
-            key={section}
-            className={active === section ? "selected" : ""}
-            onClick={() => setActive(section)}
-          >
-            {section}
-          </button>
-        ))}
-      </nav>
+      <main className="admin-layout">
+        <aside className="admin-sidebar">
+          <h3>BD বাণিজ্যিক</h3>
 
-      <main className="content">
-        <h2>{active}</h2>
-        {active === "হোম ড্যাশবোর্ড" ? (
-          <p>অ্যাডমিন ড্যাশবোর্ডে স্বাগতম।</p>
-        ) : (
-          <p>
-            এই বিভাগের ডেটাবেস ও কার্যক্রম সংযোগ এখনো বাকি।
+          {businessSections.map(section => (
+            <button
+              key={section}
+              className={active === section ? "selected" : ""}
+              onClick={() => setActive(section)}
+            >
+              {section}
+            </button>
+          ))}
+
+          <h3 className="game-heading">BD GAME</h3>
+
+          {gameSections.map(section => (
+            <button
+              key={section}
+              className={
+                active === section
+                  ? "selected game-selected"
+                  : ""
+              }
+              onClick={() => setActive(section)}
+            >
+              {section}
+            </button>
+          ))}
+        </aside>
+
+        <section className="content">
+          <p className="section-label">
+            {isGame ? "BD GAME" : "BD বাণিজ্যিক"}
           </p>
-        )}
+
+          <h2>{active}</h2>
+
+          {active === "হোম ড্যাশবোর্ড" ? (
+            <p>BD বাণিজ্যিক অ্যাডমিন ড্যাশবোর্ডে স্বাগতম।</p>
+          ) : active === "Game Dashboard" ? (
+            <p>
+              BD GAME অ্যাডমিন ড্যাশবোর্ডে স্বাগতম।
+              এখানে গেমের ২১টি ব্যবস্থাপনা বিভাগ রাখা হয়েছে।
+            </p>
+          ) : (
+            <p>
+              এই বিভাগের ডেটাবেস ও কার্যক্রম সংযোগ
+              পরবর্তী ধাপে করতে হবে।
+            </p>
+          )}
+
+          {isGame && (
+            <small className="notice">
+              আপাতত এটি বিভাগ নির্বাচনের কাঠামো।
+              গেমের ডেটা পরিবর্তনের কার্যক্রম এখনো চালু হয়নি।
+            </small>
+          )}
+        </section>
       </main>
     </div>
   );
