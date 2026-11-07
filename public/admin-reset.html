@@ -2,8 +2,7 @@
 <html lang="bn">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#087f5b">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BD ADMIN - Password Reset</title>
   <style>
     * { box-sizing: border-box; }
@@ -25,10 +24,9 @@
       max-width: 380px;
       box-shadow: 0 4px 20px #0002;
     }
-    h2 { text-align: center; color: #087f5b; }
-    h3 { text-align: center; }
+    h2, h3 { text-align: center; }
+    h2 { color: #087f5b; }
     input, button {
-      box-sizing: border-box;
       width: 100%;
       padding: 13px;
       margin-top: 12px;
@@ -56,22 +54,14 @@
     <h3>নতুন পাসওয়ার্ড সেট করুন</h3>
 
     <form id="resetForm" hidden>
-      <input
-        id="password"
-        type="password"
+      <input id="password" type="password"
         placeholder="নতুন পাসওয়ার্ড"
-        minlength="8"
-        autocomplete="new-password"
-        required
-      >
-      <input
-        id="confirmPassword"
-        type="password"
+        minlength="8" autocomplete="new-password" required>
+
+      <input id="confirmPassword" type="password"
         placeholder="পাসওয়ার্ড আবার লিখুন"
-        minlength="8"
-        autocomplete="new-password"
-        required
-      >
+        minlength="8" autocomplete="new-password" required>
+
       <button id="submitBtn" type="submit">
         পাসওয়ার্ড পরিবর্তন করুন
       </button>
@@ -95,7 +85,7 @@
       SUPABASE_KEY,
       {
         auth: {
-          detectSessionInUrl: true,
+          detectSessionInUrl: false,
           persistSession: true,
           autoRefreshToken: true
         }
@@ -112,25 +102,58 @@
         location.hash.replace(/^#/, "")
       );
 
-      if (params.get("error") || hash.get("error")) {
-        throw new Error("রিসেট লিংকটি বাতিল বা মেয়াদোত্তীর্ণ। নতুন লিংক নিন।");
+      const error = params.get("error_description") ||
+                    hash.get("error_description") ||
+                    params.get("error") ||
+                    hash.get("error");
+
+      if (error) {
+        throw new Error("রিসেট লিংক বাতিল বা মেয়াদোত্তীর্ণ।");
       }
+
+      // পুরোনো লগইন সেশন দিয়ে Recovery অনুমোদন করা হবে না।
+      await supabase.auth.signOut({ scope: "local" });
 
       const code = params.get("code");
 
       if (code) {
-        const { error } =
+        // PKCE Recovery Link: একবারই exchange করা হবে।
+        const { data, error } =
           await supabase.auth.exchangeCodeForSession(code);
 
         if (error) throw error;
+
+        if (!data.session) {
+          throw new Error("Recovery Session পাওয়া যায়নি।");
+        }
+      } else {
+        // Token-based Recovery Link
+        const access_token = hash.get("access_token");
+        const refresh_token = hash.get("refresh_token");
+
+        if (!access_token || !refresh_token) {
+          throw new Error("Gmail-এর বৈধ Recovery Link দিয়ে পেজ খুলুন।");
+        }
+
+        const { data, error } = await supabase.auth.setSession({
+          access_token,
+          refresh_token
+        });
+
+        if (error) throw error;
+
+        if (!data.session) {
+          throw new Error("Recovery Session পাওয়া যায়নি।");
+        }
       }
 
-      const { data, error } = await supabase.auth.getSession();
+      const { data, error: sessionError } =
+        await supabase.auth.getSession();
 
-      if (error) throw error;
+      if (sessionError) throw sessionError;
 
       if (!data.session) {
-        throw new Error("Gmail-এর বৈধ Recovery Link দিয়ে এই পেজ খুলুন।");
+        throw new Error("Recovery Session পাওয়া যায়নি।");
       }
 
       form.hidden = false;
@@ -141,7 +164,7 @@
       await verifyRecovery();
     } catch (error) {
       message.textContent =
-        error.message || "লিংক যাচাই করা যায়নি।";
+        error.message || "রিসেট লিংক যাচাই করা যায়নি।";
     }
 
     form.addEventListener("submit", async (event) => {
@@ -154,14 +177,12 @@
         document.getElementById("confirmPassword").value;
 
       if (password.length < 8) {
-        message.textContent =
-          "কমপক্ষে ৮ অক্ষরের পাসওয়ার্ড দিন।";
+        message.textContent = "কমপক্ষে ৮ অক্ষরের পাসওয়ার্ড দিন।";
         return;
       }
 
       if (password !== confirmPassword) {
-        message.textContent =
-          "দুটি পাসওয়ার্ড মিলছে না।";
+        message.textContent = "দুটি পাসওয়ার্ড মিলছে না।";
         return;
       }
 
@@ -173,11 +194,12 @@
           await supabase.auth.getSession();
 
         if (!sessionData.session) {
-          throw new Error("Recovery Session পাওয়া যায়নি। নতুন রিসেট লিংক নিন।");
+          throw new Error("Recovery Session পাওয়া যায়নি।");
         }
 
-        const { error } =
-          await supabase.auth.updateUser({ password });
+        const { error } = await supabase.auth.updateUser({
+          password
+        });
 
         if (error) throw error;
 
@@ -188,6 +210,7 @@
         form.hidden = true;
 
         await supabase.auth.signOut();
+
       } catch (error) {
         message.textContent =
           "সমস্যা হয়েছে: " + error.message;
@@ -197,4 +220,4 @@
     });
   </script>
 </body>
-  </html>
+</html>
