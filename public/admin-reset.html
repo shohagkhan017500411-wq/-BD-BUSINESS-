@@ -3,39 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#087f5b">
   <title>BD ADMIN - Password Reset</title>
   <style>
     * { box-sizing: border-box; }
     body {
       font-family: Arial, sans-serif;
-      background: #eef2f7;
+      background: #f1f5f9;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
       margin: 0;
-      padding: 20px;
+      padding: 18px;
     }
     .card {
       background: white;
       padding: 25px;
-      border-radius: 16px;
+      border-radius: 15px;
       width: 100%;
-      max-width: 400px;
-      box-shadow: 0 5px 25px #0002;
+      max-width: 380px;
+      box-shadow: 0 4px 20px #0002;
     }
-    h2, h3 { text-align: center; }
-    h2 { color: #087f5b; }
+    h2 { text-align: center; color: #087f5b; }
+    h3 { text-align: center; }
     input, button {
+      box-sizing: border-box;
       width: 100%;
-      padding: 14px;
-      margin-top: 14px;
-      border-radius: 9px;
+      padding: 13px;
+      margin-top: 12px;
+      border-radius: 8px;
       font-size: 16px;
     }
     input { border: 1px solid #ccc; }
     button {
-      border: none;
+      border: 0;
       background: #087f5b;
       color: white;
       font-weight: bold;
@@ -43,7 +45,7 @@
     button:disabled { opacity: .6; }
     #message {
       text-align: center;
-      margin-top: 16px;
+      margin-top: 15px;
       overflow-wrap: anywhere;
     }
   </style>
@@ -53,7 +55,7 @@
     <h2>BD ADMIN</h2>
     <h3>নতুন পাসওয়ার্ড সেট করুন</h3>
 
-    <form id="resetForm">
+    <form id="resetForm" hidden>
       <input
         id="password"
         type="password"
@@ -62,7 +64,6 @@
         autocomplete="new-password"
         required
       >
-
       <input
         id="confirmPassword"
         type="password"
@@ -71,15 +72,12 @@
         autocomplete="new-password"
         required
       >
-
       <button id="submitBtn" type="submit">
         পাসওয়ার্ড পরিবর্তন করুন
       </button>
     </form>
 
-    <p id="message">
-      Gmail থেকে পাওয়া রিসেট লিংক দিয়ে এই পেজ খুলুন।
-    </p>
+    <p id="message">রিসেট লিংক যাচাই হচ্ছে...</p>
   </div>
 
   <script type="module">
@@ -94,36 +92,57 @@
 
     const supabase = createClient(
       SUPABASE_URL,
-      SUPABASE_KEY
+      SUPABASE_KEY,
+      {
+        auth: {
+          detectSessionInUrl: true,
+          persistSession: true,
+          autoRefreshToken: true
+        }
+      }
     );
 
     const form = document.getElementById("resetForm");
     const message = document.getElementById("message");
     const button = document.getElementById("submitBtn");
 
-    async function checkRecoverySession() {
+    async function verifyRecovery() {
       const params = new URLSearchParams(location.search);
+      const hash = new URLSearchParams(
+        location.hash.replace(/^#/, "")
+      );
+
+      if (params.get("error") || hash.get("error")) {
+        throw new Error("রিসেট লিংকটি বাতিল বা মেয়াদোত্তীর্ণ। নতুন লিংক নিন।");
+      }
+
       const code = params.get("code");
 
       if (code) {
         const { error } =
           await supabase.auth.exchangeCodeForSession(code);
 
-        if (error) {
-          message.textContent =
-            "রিসেট লিংক গ্রহণ করা যায়নি। নতুন লিংক নিন।";
-        }
+        if (error) throw error;
       }
 
-      const { data } = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.getSession();
+
+      if (error) throw error;
 
       if (!data.session) {
-        message.textContent =
-          "Gmail-এর বৈধ রিসেট লিংক দিয়ে এই পেজ খুলুন।";
+        throw new Error("Gmail-এর বৈধ Recovery Link দিয়ে এই পেজ খুলুন।");
       }
+
+      form.hidden = false;
+      message.textContent = "নতুন পাসওয়ার্ড দিন।";
     }
 
-    await checkRecoverySession();
+    try {
+      await verifyRecovery();
+    } catch (error) {
+      message.textContent =
+        error.message || "লিংক যাচাই করা যায়নি।";
+    }
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -136,35 +155,46 @@
 
       if (password.length < 8) {
         message.textContent =
-          "কমপক্ষে ৮ অক্ষরের পাসওয়ার্ড দিন।";
+          "কমপক্ষে ৮ অক্ষরের পাসওয়ার্ড দিন।";
         return;
       }
 
       if (password !== confirmPassword) {
         message.textContent =
-          "দুটি পাসওয়ার্ড মিলছে না।";
+          "দুটি পাসওয়ার্ড মিলছে না।";
         return;
       }
 
       button.disabled = true;
-      message.textContent = "পাসওয়ার্ড পরিবর্তন হচ্ছে...";
+      message.textContent = "পাসওয়ার্ড পরিবর্তন হচ্ছে...";
 
-      const { data, error } =
-        await supabase.auth.updateUser({
-          password: password
-        });
+      try {
+        const { data: sessionData } =
+          await supabase.auth.getSession();
 
-      if (error) {
+        if (!sessionData.session) {
+          throw new Error("Recovery Session পাওয়া যায়নি। নতুন রিসেট লিংক নিন।");
+        }
+
+        const { error } =
+          await supabase.auth.updateUser({ password });
+
+        if (error) throw error;
+
         message.textContent =
-          "সমস্যা হয়েছে: " + error.message;
-      } else if (data.user) {
-        message.textContent =
-          "পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে। এখন BD ADMIN APK-তে লগইন করুন।";
+          "পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে। এখন BD ADMIN APK-তে নতুন পাসওয়ার্ড দিয়ে লগইন করুন।";
+
         form.reset();
-      }
+        form.hidden = true;
 
-      button.disabled = false;
+        await supabase.auth.signOut();
+      } catch (error) {
+        message.textContent =
+          "সমস্যা হয়েছে: " + error.message;
+      } finally {
+        button.disabled = false;
+      }
     });
   </script>
 </body>
-</html>
+  </html>
