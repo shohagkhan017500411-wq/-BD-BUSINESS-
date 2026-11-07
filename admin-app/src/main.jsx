@@ -63,7 +63,7 @@ function App() {
 
     const {
       data: { subscription }
-    } = db.auth.onAuthStateChange((event, session) => {
+    } = db.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setRecovery(true);
         setUser(null);
@@ -92,7 +92,7 @@ function App() {
       });
 
     if (error) {
-      setMessage("লগইন ব্যর্থ হয়েছে। তথ্য যাচাই করুন।");
+      setMessage("লগইন ব্যর্থ হয়েছে। Gmail ও পাসওয়ার্ড যাচাই করুন।");
       setLoading(false);
       return;
     }
@@ -141,7 +141,7 @@ function App() {
       );
     } else {
       setMessage(
-        "আপনার Gmail-এ রিসেট লিংক পাঠানো হয়েছে। Gmail চেক করুন।"
+        "রিসেট লিংক পাঠানোর অনুরোধ হয়েছে। Gmail Inbox ও Spam দেখুন।"
       );
     }
 
@@ -166,7 +166,9 @@ function App() {
     });
 
     if (error) {
-      setMessage("পাসওয়ার্ড পরিবর্তন করা যায়নি। আবার চেষ্টা করুন।");
+      setMessage(
+        "পাসওয়ার্ড পরিবর্তন করা যায়নি। রিসেট লিংকটি আবার যাচাই করুন।"
+      );
       setLoading(false);
       return;
     }
@@ -176,12 +178,15 @@ function App() {
     setRecovery(false);
     setNewPassword("");
     setPassword("");
-    setMessage("পাসওয়ার্ড পরিবর্তন হয়েছে। নতুন পাসওয়ার্ড দিয়ে লগইন করুন।");
+    setMessage(
+      "পাসওয়ার্ড পরিবর্তন হয়েছে। নতুন পাসওয়ার্ড দিয়ে লগইন করুন।"
+    );
     setLoading(false);
   }
 
   async function logout() {
     if (db) await db.auth.signOut();
+
     setUser(null);
     setPassword("");
     setMessage("");
@@ -197,6 +202,7 @@ function App() {
 
           <form onSubmit={updatePassword}>
             <label>নতুন পাসওয়ার্ড</label>
+
             <input
               type="password"
               placeholder="নতুন পাসওয়ার্ড লিখুন"
@@ -207,11 +213,15 @@ function App() {
             />
 
             <button disabled={loading}>
-              {loading ? "পরিবর্তন হচ্ছে..." : "পাসওয়ার্ড পরিবর্তন করুন"}
+              {loading
+                ? "পরিবর্তন হচ্ছে..."
+                : "পাসওয়ার্ড পরিবর্তন করুন"}
             </button>
           </form>
 
-          {message && <p className="message">{message}</p>}
+          {message && (
+            <p className="message" role="status">{message}</p>
+          )}
         </section>
       </main>
     );
@@ -227,6 +237,7 @@ function App() {
 
           <form onSubmit={login}>
             <label>Gmail</label>
+
             <input
               type="email"
               placeholder="আপনার Gmail"
@@ -236,6 +247,7 @@ function App() {
             />
 
             <label>Password</label>
+
             <input
               type="password"
               placeholder="আপনার পাসওয়ার্ড"
@@ -251,9 +263,20 @@ function App() {
 
           <button
             type="button"
-            className="forgot-password"
             onClick={sendPasswordReset}
             disabled={resetLoading || loading}
+            style={{
+              display: "block",
+              width: "100%",
+              marginTop: "15px",
+              padding: "12px",
+              background: "transparent",
+              color: "#176344",
+              border: "none",
+              cursor: "pointer",
+              fontSize: "16px",
+              fontWeight: "bold"
+            }}
           >
             {resetLoading
               ? "রিসেট লিংক পাঠানো হচ্ছে..."
