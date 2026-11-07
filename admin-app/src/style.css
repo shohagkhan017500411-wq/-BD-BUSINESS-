@@ -111,25 +111,6 @@ button:disabled {
   color: #174c35;
 }
 
-.dashboard nav {
-  display: flex;
-  gap: 9px;
-  padding: 14px;
-  overflow-x: auto;
-  background: white;
-}
-
-.dashboard nav button {
-  flex-shrink: 0;
-  background: #e8f0eb;
-  color: #174c35;
-}
-
-.dashboard nav button.selected {
-  background: #174c35;
-  color: white;
-}
-
 .content {
   margin: 15px;
   padding: 22px;
@@ -138,14 +119,6 @@ button:disabled {
   min-height: 250px;
 }
 
-@media (max-width: 480px) {
-  .dashboard header {
-    padding: 14px;
-  }
-
-  .content {
-    margin: 10px;
-    padding: 17px;
 /* BD ADMIN layout update */
 .admin-layout {
   display: flex;
@@ -160,6 +133,7 @@ button:disabled {
   overflow-y: auto;
   padding: 15px;
   border-radius: 12px;
+  background: white;
 }
 
 .admin-sidebar button {
@@ -170,6 +144,11 @@ button:disabled {
   padding: 11px;
   border-radius: 8px;
   cursor: pointer;
+}
+
+.admin-sidebar button.selected {
+  background: #174c35;
+  color: white;
 }
 
 .game-heading {
@@ -204,17 +183,15 @@ button:disabled {
     width: 100%;
     min-width: 0;
     max-height: 350px;
-    box-sizing: border-box;
   }
 
   .content {
-    width: 100%;
-    box-sizing: border-box;
+    width: auto;
+    margin: 10px;
+    padding: 17px;
   }
-}
-  
-  
+
+  .dashboard header {
+    padding: 14px;
   }
-}
-
-
+  }
