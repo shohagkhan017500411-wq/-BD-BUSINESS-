@@ -9,6 +9,8 @@ body {
   color: #183b2b;
 }
 
+/* LOGIN PAGE */
+
 .login-page {
   min-height: 100vh;
   display: flex;
@@ -93,6 +95,8 @@ button:disabled {
   color: #68776d;
 }
 
+/* DASHBOARD HEADER */
+
 .dashboard header {
   background: #174c35;
   color: white;
@@ -111,20 +115,16 @@ button:disabled {
   color: #174c35;
 }
 
-.content {
-  margin: 15px;
-  padding: 22px;
-  background: white;
-  border-radius: 14px;
-  min-height: 250px;
-}
+/* ADMIN LAYOUT */
 
-/* BD ADMIN layout update */
 .admin-layout {
   display: flex;
   gap: 20px;
   align-items: flex-start;
+  padding: 15px;
 }
+
+/* ADMIN SIDEBAR */
 
 .admin-sidebar {
   width: 280px;
@@ -134,6 +134,12 @@ button:disabled {
   padding: 15px;
   border-radius: 12px;
   background: white;
+  box-shadow: 0 3px 12px #00000010;
+}
+
+.admin-sidebar h3 {
+  margin: 10px 0 15px;
+  color: #174c35;
 }
 
 .admin-sidebar button {
@@ -144,12 +150,16 @@ button:disabled {
   padding: 11px;
   border-radius: 8px;
   cursor: pointer;
+  background: #e8f0eb;
+  color: #174c35;
 }
 
 .admin-sidebar button.selected {
   background: #174c35;
   color: white;
 }
+
+/* BD GAME */
 
 .game-heading {
   margin-top: 22px;
@@ -159,6 +169,18 @@ button:disabled {
 
 .game-selected {
   font-weight: bold;
+}
+
+/* CONTENT */
+
+.content {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 22px;
+  background: white;
+  border-radius: 14px;
+  min-height: 250px;
 }
 
 .section-label {
@@ -174,9 +196,17 @@ button:disabled {
   background: #f1f1f1;
 }
 
+/* MOBILE RESPONSIVE */
+
 @media (max-width: 700px) {
+  .dashboard header {
+    padding: 14px;
+  }
+
   .admin-layout {
     flex-direction: column;
+    gap: 12px;
+    padding: 10px;
   }
 
   .admin-sidebar {
@@ -186,12 +216,22 @@ button:disabled {
   }
 
   .content {
-    width: auto;
-    margin: 10px;
+    width: 100%;
+    margin: 0;
     padding: 17px;
   }
+}
 
-  .dashboard header {
-    padding: 14px;
+@media (max-width: 480px) {
+  .login-card {
+    padding: 25px 18px;
+  }
+
+  .dashboard header h2 {
+    font-size: 19px;
+  }
+
+  .admin-sidebar button {
+    font-size: 14px;
   }
   }
