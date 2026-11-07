@@ -9,106 +9,324 @@ body {
   color: #222;
 }
 
-header {
-  background: #087b45;
-  color: white;
-  padding: 22px 15px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  text-align: center;
+button,
+input {
+  font-family: inherit;
 }
 
-header b {
-  font-size: 25px;
+button {
+  border: none;
+  cursor: pointer;
+}
+
+.app {
+  min-height: 100vh;
+  padding-bottom: 75px;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  height: 62px;
+  background: #087645;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 15px;
+  box-shadow: 0 2px 7px #0002;
+}
+
+.topbar h1 {
+  margin: 0;
+  font-size: 23px;
+  font-weight: bold;
+}
+
+.topbar button {
+  background: transparent;
+  color: white;
+  font-size: 27px;
+  padding: 5px 12px;
 }
 
 main {
   max-width: 850px;
   margin: auto;
-  padding: 15px;
+  padding: 12px;
 }
 
-.hero {
+.adSlot {
+  min-height: 85px;
   background: #e0f5e9;
-  padding: 28px 15px;
-  text-align: center;
-  border-radius: 14px;
-  margin-bottom: 20px;
+  color: #087645;
+  border: 1px dashed #087645;
+  border-radius: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 15px;
+  font-size: 18px;
+  font-weight: bold;
 }
 
-.hero h1 {
-  color: #087b45;
+.menuPanel {
+  position: absolute;
+  top: 58px;
+  left: 10px;
+  z-index: 30;
+  width: 210px;
+  background: white;
+  border-radius: 10px;
+  box-shadow: 0 4px 15px #0003;
+  overflow: hidden;
+}
+
+.menuPanel button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 13px 15px;
+  background: white;
+  color: #222;
+  border-bottom: 1px solid #eee;
+  font-size: 15px;
+}
+
+.menuPanel button:active {
+  background: #e0f5e9;
+}
+
+#product-search {
+  width: 100%;
+  padding: 13px;
+  border: 1px solid #ddd;
+  border-radius: 9px;
+  font-size: 16px;
+  margin-bottom: 12px;
+  outline: none;
+}
+
+#product-search:focus,
+.panel input:focus {
+  border-color: #087645;
+}
+
+.categoryRow {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+  padding: 5px 0 12px;
+  scrollbar-width: none;
+}
+
+.categoryRow::-webkit-scrollbar {
+  display: none;
+}
+
+.categoryRow button {
+  flex-shrink: 0;
+  background: white;
+  color: #087645;
+  border: 1px solid #087645;
+  border-radius: 20px;
+  padding: 9px 15px;
+  font-size: 13px;
+}
+
+.categoryRow button:active {
+  background: #087645;
+  color: white;
+}
+
+.productGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.product {
+  background: white;
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 2px 7px #00000012;
+  overflow: hidden;
+}
+
+.product img,
+.imagePlaceholder {
+  width: 100%;
+  height: 135px;
+  object-fit: cover;
+  border-radius: 7px;
+}
+
+.imagePlaceholder {
+  background: #edf1ef;
+  color: #888;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.product h3 {
+  font-size: 15px;
+  margin: 10px 0 5px;
+}
+
+.product p {
+  font-size: 13px;
+  color: #666;
+  margin: 5px 0;
+}
+
+.product strong {
+  display: block;
+  color: #087645;
+  font-size: 17px;
+  margin: 9px 0;
+}
+
+.product button,
+.panel button {
+  background: #087645;
+  color: white;
+  border-radius: 7px;
+  padding: 11px 14px;
+  font-size: 14px;
+}
+
+.product button {
+  width: 100%;
 }
 
 .panel {
   background: white;
   padding: 18px;
-  margin: 18px 0;
+  margin: 15px 0;
   border-radius: 12px;
-  box-shadow: 0 2px 8px #0001;
+  box-shadow: 0 2px 8px #00000012;
 }
 
-input, select, textarea {
+.panel h2 {
+  color: #087645;
+  font-size: 21px;
+  margin: 0 0 18px;
+}
+
+.panel form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel label {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.panel input {
+  display: block;
   width: 100%;
   padding: 13px;
-  margin: 7px 0;
   border: 1px solid #ccc;
+  margin-top: 6px;
   border-radius: 7px;
+  font-size: 16px;
+  outline: none;
+}
+
+.panel form button {
+  margin-top: 8px;
+  width: 100%;
+  padding: 13px;
   font-size: 16px;
 }
 
-button {
-  background: #087b45;
-  color: white;
-  border: none;
-  padding: 12px 17px;
-  border-radius: 7px;
-  margin: 5px;
-  cursor: pointer;
-}
-
-button.alt {
-  background: #2765ad;
-}
-
-button.red {
-  background: #c0392b;
-}
-
-.products {
+.dashboardGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 15px;
 }
 
-article {
-  background: white;
-  padding: 15px;
-  margin: 10px 0;
-  border-radius: 10px;
-  box-shadow: 0 2px 7px #0001;
+.dashboardGrid button {
+  min-height: 65px;
 }
 
-.product strong {
-  color: #087b45;
-  font-size: 21px;
+.statusTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.message {
+.statusTabs button {
   background: #e0f5e9;
-  padding: 12px;
-  border-radius: 8px;
+  color: #087645;
 }
 
-.hint {
-  color: #666;
+.panel a {
+  color: #087645;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.bottomNav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  height: 65px;
+  background: white;
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  box-shadow: 0 -2px 10px #00000015;
+}
+
+.bottomNav button {
+  flex: 1;
+  height: 100%;
+  background: white;
+  color: #444;
   font-size: 13px;
+  font-weight: bold;
 }
 
-footer {
-  background: #087b45;
+.bottomNav button:active {
+  color: #087645;
+  background: #e0f5e9;
+}
+
+.toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  background: #222;
   color: white;
+  padding: 12px 18px;
+  border-radius: 8px;
+  max-width: 90%;
+  font-size: 14px;
   text-align: center;
-  padding: 20px;
+}
+
+@media (max-width: 380px) {
+  .topbar h1 {
+    font-size: 20px;
+  }
+
+  .product img,
+  .imagePlaceholder {
+    height: 110px;
+  }
+
+  .product {
+    padding: 8px;
+  }
 }
