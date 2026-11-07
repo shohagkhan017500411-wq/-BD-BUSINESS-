@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { createRoot } from "react-dom/client";
 import { createClient } from "@supabase/supabase-js";
 import "./style.css";
@@ -50,29 +50,11 @@ const gameSections = [
 function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [newPassword, setNewPassword] = useState("");
   const [user, setUser] = useState(null);
   const [active, setActive] = useState("হোম ড্যাশবোর্ড");
   const [loading, setLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
-  const [recovery, setRecovery] = useState(false);
   const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    if (!db) return;
-
-    const {
-      data: { subscription }
-    } = db.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setRecovery(true);
-        setUser(null);
-        setMessage("নতুন পাসওয়ার্ড সেট করুন।");
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   async function login(e) {
     e.preventDefault();
@@ -85,29 +67,34 @@ function App() {
     setLoading(true);
     setMessage("");
 
-    const { data, error } =
-      await db.auth.signInWithPassword({
-        email: email.trim(),
-        password
-      });
+    try {
+      const { data, error } =
+        await db.auth.signInWithPassword({
+          email: email.trim(),
+          password
+        });
 
-    if (error) {
-      setMessage("লগইন ব্যর্থ হয়েছে। Gmail ও পাসওয়ার্ড যাচাই করুন।");
-      setLoading(false);
-      return;
+      if (error) {
+        setMessage("লগইন ব্যর্থ হয়েছে। Gmail ও পাসওয়ার্ড যাচাই করুন।");
+        setLoading(false);
+        return;
+      }
+
+      const { data: allowed, error: checkError } =
+        await db.rpc("is_bd_business_admin");
+
+      if (checkError || allowed !== true) {
+        await db.auth.signOut();
+        setMessage("আপনার অ্যাডমিন অনুমতি নেই।");
+        setLoading(false);
+        return;
+      }
+
+      setUser(data.user);
+    } catch (error) {
+      setMessage("সমস্যা হয়েছে। আবার চেষ্টা করুন।");
     }
 
-    const { data: allowed, error: checkError } =
-      await db.rpc("is_bd_business_admin");
-
-    if (checkError || allowed !== true) {
-      await db.auth.signOut();
-      setMessage("আপনার অ্যাডমিন অনুমতি নেই।");
-      setLoading(false);
-      return;
-    }
-
-    setUser(data.user);
     setLoading(false);
   }
 
@@ -127,104 +114,40 @@ function App() {
     setResetLoading(true);
     setMessage("");
 
-    const { error } =
-      await db.auth.resetPasswordForEmail(
-        normalizedEmail,
-        {
-          redirectTo: window.location.origin
-        }
-      );
+    try {
+      const { error } =
+        await db.auth.resetPasswordForEmail(
+          normalizedEmail,
+          {
+            redirectTo:
+              `${window.location.origin}/admin-reset.html`
+          }
+        );
 
-    if (error) {
-      setMessage(
-        "রিসেট লিংক পাঠানো যায়নি। কিছুক্ষণ পরে আবার চেষ্টা করুন।"
-      );
-    } else {
-      setMessage(
-        "রিসেট লিংক পাঠানোর অনুরোধ হয়েছে। Gmail Inbox ও Spam দেখুন।"
-      );
+      if (error) {
+        setMessage(
+          "রিসেট লিংক পাঠানো যায়নি। পরে আবার চেষ্টা করুন।"
+        );
+      } else {
+        setMessage(
+          "রিসেট লিংকের অনুরোধ হয়েছে। Gmail Inbox ও Spam দেখুন।"
+        );
+      }
+    } catch (error) {
+      setMessage("সমস্যা হয়েছে। আবার চেষ্টা করুন।");
     }
 
     setResetLoading(false);
   }
 
-  async function updatePassword(e) {
-    e.preventDefault();
-
-    if (!db) return;
-
-    if (newPassword.length < 8) {
-      setMessage("নতুন পাসওয়ার্ড কমপক্ষে ৮ অক্ষরের হতে হবে।");
-      return;
-    }
-
-    setLoading(true);
-    setMessage("");
-
-    const { error } = await db.auth.updateUser({
-      password: newPassword
-    });
-
-    if (error) {
-      setMessage(
-        "পাসওয়ার্ড পরিবর্তন করা যায়নি। রিসেট লিংকটি আবার যাচাই করুন।"
-      );
-      setLoading(false);
-      return;
-    }
-
-    await db.auth.signOut();
-
-    setRecovery(false);
-    setNewPassword("");
-    setPassword("");
-    setMessage(
-      "পাসওয়ার্ড পরিবর্তন হয়েছে। নতুন পাসওয়ার্ড দিয়ে লগইন করুন।"
-    );
-    setLoading(false);
-  }
-
   async function logout() {
-    if (db) await db.auth.signOut();
+    if (db) {
+      await db.auth.signOut();
+    }
 
     setUser(null);
     setPassword("");
     setMessage("");
-  }
-
-  if (recovery) {
-    return (
-      <main className="login-page">
-        <section className="login-card">
-          <div className="logo">BD</div>
-          <h1>নতুন পাসওয়ার্ড</h1>
-          <p>Set New Password</p>
-
-          <form onSubmit={updatePassword}>
-            <label>নতুন পাসওয়ার্ড</label>
-
-            <input
-              type="password"
-              placeholder="নতুন পাসওয়ার্ড লিখুন"
-              value={newPassword}
-              onChange={e => setNewPassword(e.target.value)}
-              minLength={8}
-              required
-            />
-
-            <button disabled={loading}>
-              {loading
-                ? "পরিবর্তন হচ্ছে..."
-                : "পাসওয়ার্ড পরিবর্তন করুন"}
-            </button>
-          </form>
-
-          {message && (
-            <p className="message" role="status">{message}</p>
-          )}
-        </section>
-      </main>
-    );
   }
 
   if (!user) {
@@ -232,6 +155,7 @@ function App() {
       <main className="login-page">
         <section className="login-card">
           <div className="logo">BD</div>
+
           <h1>বিডি এডমিন</h1>
           <p>Admin Login</p>
 
@@ -256,7 +180,7 @@ function App() {
               required
             />
 
-            <button disabled={loading}>
+            <button type="submit" disabled={loading}>
               {loading ? "অপেক্ষা করুন..." : "লগইন করুন"}
             </button>
           </form>
@@ -284,7 +208,9 @@ function App() {
           </button>
 
           {message && (
-            <p className="message" role="status">{message}</p>
+            <p className="message" role="status">
+              {message}
+            </p>
           )}
 
           <small>
@@ -349,7 +275,9 @@ function App() {
           <h2>{active}</h2>
 
           {active === "হোম ড্যাশবোর্ড" ? (
-            <p>BD বাণিজ্যিক অ্যাডমিন ড্যাশবোর্ডে স্বাগতম।</p>
+            <p>
+              BD বাণিজ্যিক অ্যাডমিন ড্যাশবোর্ডে স্বাগতম।
+            </p>
           ) : active === "Game Dashboard" ? (
             <p>
               BD GAME অ্যাডমিন ড্যাশবোর্ডে স্বাগতম।
