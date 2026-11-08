@@ -101,6 +101,8 @@
     const SUPABASE_KEY =
       "sb_publishable_VtKcNjnEM75QwAl24DuWHg_wVh5iBf2";
 
+    // বর্তমানে এটি মূল ওয়েবসাইটের ঠিকানা।
+    // আলাদা Admin URL তৈরি হলে এখানে সেটি বসাতে হবে।
     const ADMIN_URL =
       "https://bd-business.shohagkhan017500411.workers.dev/";
 
@@ -141,8 +143,7 @@
         );
       }
 
-      await supabase.auth.signOut({ scope: "local" });
-
+      // প্রথমে PKCE Code যাচাই
       const code = params.get("code");
 
       if (code) {
@@ -150,10 +151,12 @@
           await supabase.auth.exchangeCodeForSession(code);
 
         if (error) throw error;
+
         if (!data.session) {
           throw new Error("Recovery Session পাওয়া যায়নি।");
         }
       } else {
+        // বিকল্প Token Flow
         const access_token = hash.get("access_token");
         const refresh_token = hash.get("refresh_token");
         const type = hash.get("type");
@@ -164,7 +167,7 @@
           type !== "recovery"
         ) {
           throw new Error(
-            "Gmail-এর নতুন বৈধ Recovery Link দিয়ে পেজ খুলুন।"
+            "Gmail-এর বৈধ Recovery Link দিয়ে পেজ খুলুন।"
           );
         }
 
@@ -175,15 +178,17 @@
           });
 
         if (error) throw error;
+
         if (!data.session) {
           throw new Error("Recovery Session পাওয়া যায়নি।");
         }
       }
 
-      const { data, error: sessionError } =
+      // Session যাচাই
+      const { data, error } =
         await supabase.auth.getSession();
 
-      if (sessionError) throw sessionError;
+      if (error) throw error;
 
       if (!data.session) {
         throw new Error("Recovery Session পাওয়া যায়নি।");
@@ -191,6 +196,7 @@
 
       recoveryVerified = true;
       form.hidden = false;
+
       message.textContent = "নতুন পাসওয়ার্ড দিন।";
     }
 
@@ -229,6 +235,7 @@
       }
 
       button.disabled = true;
+
       message.textContent =
         "পাসওয়ার্ড পরিবর্তন হচ্ছে...";
 
@@ -242,9 +249,10 @@
           throw new Error("Recovery Session পাওয়া যায়নি।");
         }
 
-        const { error } = await supabase.auth.updateUser({
-          password
-        });
+        const { error } =
+          await supabase.auth.updateUser({
+            password
+          });
 
         if (error) throw error;
 
@@ -253,9 +261,12 @@
         form.hidden = true;
 
         message.textContent =
-          "পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে। এখন BD ADMIN লগইন পেজে নেওয়া হচ্ছে...";
+          "পাসওয়ার্ড সফলভাবে পরিবর্তন হয়েছে।";
 
         await supabase.auth.signOut();
+
+        message.textContent +=
+          " এখন লগইন পেজে নেওয়া হচ্ছে...";
 
         setTimeout(() => {
           window.location.replace(ADMIN_URL);
@@ -264,9 +275,10 @@
       } catch (error) {
         message.textContent =
           "সমস্যা হয়েছে: " + error.message;
+
         button.disabled = false;
       }
     });
   </script>
 </body>
-</html>
+    </html>
