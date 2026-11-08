@@ -4,10 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>BD ADMIN - নতুন পাসওয়ার্ড</title>
-
   <style>
     * { box-sizing: border-box; }
-
     body {
       font-family: Arial, sans-serif;
       background: #f1f5f9;
@@ -18,7 +16,6 @@
       margin: 0;
       padding: 18px;
     }
-
     .card {
       background: white;
       padding: 25px;
@@ -27,10 +24,8 @@
       max-width: 380px;
       box-shadow: 0 4px 20px #0002;
     }
-
     h2, h3 { text-align: center; }
     h2 { color: #087f5b; }
-
     input, button {
       width: 100%;
       padding: 13px;
@@ -38,9 +33,7 @@
       border-radius: 8px;
       font-size: 16px;
     }
-
     input { border: 1px solid #ccc; }
-
     button {
       border: 0;
       background: #087f5b;
@@ -48,9 +41,7 @@
       font-weight: bold;
       cursor: pointer;
     }
-
     button:disabled { opacity: .6; }
-
     #message {
       text-align: center;
       margin-top: 15px;
@@ -58,30 +49,19 @@
     }
   </style>
 </head>
-
 <body>
   <div class="card">
     <h2>BD ADMIN</h2>
     <h3>নতুন পাসওয়ার্ড সেট করুন</h3>
 
     <form id="resetForm" hidden>
-      <input
-        id="password"
-        type="password"
+      <input id="password" type="password"
         placeholder="নতুন পাসওয়ার্ড"
-        minlength="8"
-        autocomplete="new-password"
-        required
-      >
+        minlength="8" autocomplete="new-password" required>
 
-      <input
-        id="confirmPassword"
-        type="password"
+      <input id="confirmPassword" type="password"
         placeholder="পাসওয়ার্ড আবার লিখুন"
-        minlength="8"
-        autocomplete="new-password"
-        required
-      >
+        minlength="8" autocomplete="new-password" required>
 
       <button id="submitBtn" type="submit">
         পাসওয়ার্ড পরিবর্তন করুন
@@ -101,8 +81,7 @@
     const SUPABASE_KEY =
       "sb_publishable_VtKcNjnEM75QwAl24DuWHg_wVh5iBf2";
 
-    // বর্তমানে এটি মূল ওয়েবসাইটের ঠিকানা।
-    // আলাদা Admin URL তৈরি হলে এখানে সেটি বসাতে হবে।
+    // Admin Login-এর সঠিক URL নিশ্চিত হলে এখানে বসাতে হবে।
     const ADMIN_URL =
       "https://bd-business.shohagkhan017500411.workers.dev/";
 
@@ -124,26 +103,40 @@
 
     let recoveryVerified = false;
 
+    function showError(error) {
+      const code = error?.code || "";
+      const msg = error?.message || "";
+
+      if (code === "otp_expired" ||
+          msg.toLowerCase().includes("expired")) {
+        return "রিসেট লিংকের মেয়াদ শেষ। নতুন Reset Email পাঠান।";
+      }
+
+      return "লিংক যাচাই করা যায়নি: " + msg;
+    }
+
     async function verifyRecovery() {
       const params = new URLSearchParams(location.search);
-
       const hash = new URLSearchParams(
         location.hash.replace(/^#/, "")
       );
 
-      const error =
-        params.get("error_description") ||
-        hash.get("error_description") ||
-        params.get("error") ||
-        hash.get("error");
+      const errorCode =
+        params.get("error_code") || hash.get("error_code");
 
-      if (error) {
-        throw new Error(
-          "রিসেট লিংক বাতিল অথবা মেয়াদোত্তীর্ণ।"
-        );
+      const error =
+        params.get("error") || hash.get("error");
+
+      if (error || errorCode) {
+        throw {
+          code: errorCode || error,
+          message:
+            params.get("error_description") ||
+            hash.get("error_description") ||
+            errorCode || error
+        };
       }
 
-      // প্রথমে PKCE Code যাচাই
       const code = params.get("code");
 
       if (code) {
@@ -151,60 +144,50 @@
           await supabase.auth.exchangeCodeForSession(code);
 
         if (error) throw error;
-
         if (!data.session) {
-          throw new Error("Recovery Session পাওয়া যায়নি।");
+          throw new Error("Recovery Session পাওয়া যায়নি।");
         }
       } else {
-        // বিকল্প Token Flow
-        const access_token = hash.get("access_token");
-        const refresh_token = hash.get("refresh_token");
+        const accessToken = hash.get("access_token");
+        const refreshToken = hash.get("refresh_token");
         const type = hash.get("type");
 
-        if (
-          !access_token ||
-          !refresh_token ||
-          type !== "recovery"
-        ) {
+        if (!accessToken || !refreshToken ||
+            type !== "recovery") {
           throw new Error(
-            "Gmail-এর বৈধ Recovery Link দিয়ে পেজ খুলুন।"
+            "Gmail-এর নতুন বৈধ Recovery Link ব্যবহার করুন।"
           );
         }
 
         const { data, error } =
           await supabase.auth.setSession({
-            access_token,
-            refresh_token
+            access_token: accessToken,
+            refresh_token: refreshToken
           });
 
         if (error) throw error;
-
         if (!data.session) {
-          throw new Error("Recovery Session পাওয়া যায়নি।");
+          throw new Error("Recovery Session পাওয়া যায়নি।");
         }
       }
 
-      // Session যাচাই
       const { data, error } =
         await supabase.auth.getSession();
 
       if (error) throw error;
-
       if (!data.session) {
-        throw new Error("Recovery Session পাওয়া যায়নি।");
+        throw new Error("Recovery Session পাওয়া যায়নি।");
       }
 
       recoveryVerified = true;
       form.hidden = false;
-
       message.textContent = "নতুন পাসওয়ার্ড দিন।";
     }
 
     try {
       await verifyRecovery();
     } catch (error) {
-      message.textContent =
-        error.message || "রিসেট লিংক যাচাই করা যায়নি।";
+      message.textContent = showError(error);
     }
 
     form.addEventListener("submit", async (event) => {
@@ -212,7 +195,7 @@
 
       if (!recoveryVerified) {
         message.textContent =
-          "আগে Gmail-এর Recovery Link যাচাই করুন।";
+          "আগে বৈধ Gmail Recovery Link যাচাই করুন।";
         return;
       }
 
@@ -235,26 +218,21 @@
       }
 
       button.disabled = true;
-
-      message.textContent =
-        "পাসওয়ার্ড পরিবর্তন হচ্ছে...";
+      message.textContent = "পাসওয়ার্ড পরিবর্তন হচ্ছে...";
 
       try {
-        const { data: sessionData, error: sessionError } =
+        const { data, error } =
           await supabase.auth.getSession();
 
-        if (sessionError) throw sessionError;
-
-        if (!sessionData.session) {
-          throw new Error("Recovery Session পাওয়া যায়নি।");
+        if (error) throw error;
+        if (!data.session) {
+          throw new Error("Recovery Session পাওয়া যায়নি।");
         }
 
-        const { error } =
-          await supabase.auth.updateUser({
-            password
-          });
+        const { error: updateError } =
+          await supabase.auth.updateUser({ password });
 
-        if (error) throw error;
+        if (updateError) throw updateError;
 
         recoveryVerified = false;
         form.reset();
@@ -266,7 +244,7 @@
         await supabase.auth.signOut();
 
         message.textContent +=
-          " এখন লগইন পেজে নেওয়া হচ্ছে...";
+          " লগইন পেজে নেওয়া হচ্ছে...";
 
         setTimeout(() => {
           window.location.replace(ADMIN_URL);
@@ -274,8 +252,7 @@
 
       } catch (error) {
         message.textContent =
-          "সমস্যা হয়েছে: " + error.message;
-
+          "সমস্যা হয়েছে: " + (error.message || "আবার চেষ্টা করুন।");
         button.disabled = false;
       }
     });
