@@ -214,6 +214,30 @@ function App() {
               required
             />
 
+            {/* পাসওয়ার্ড ভুলে গেছেন বাটন */}
+            <button
+              type="button"
+              onClick={sendPasswordReset}
+              disabled={resetLoading || loading}
+              style={{
+                display: "block",
+                width: "100%",
+                marginTop: "8px",
+                padding: "10px",
+                background: "transparent",
+                color: "#176344",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "15px",
+                fontWeight: "bold"
+              }}
+            >
+              {resetLoading
+                ? "রিসেট লিংক পাঠানো হচ্ছে..."
+                : "পাসওয়ার্ড ভুলে গেছেন?"}
+            </button>
+
+            {/* লগইন বাটন */}
             <button
               type="submit"
               disabled={loading || resetLoading}
@@ -221,28 +245,6 @@ function App() {
               {loading ? "অপেক্ষা করুন..." : "লগইন করুন"}
             </button>
           </form>
-
-          <button
-            type="button"
-            onClick={sendPasswordReset}
-            disabled={resetLoading || loading}
-            style={{
-              display: "block",
-              width: "100%",
-              marginTop: "15px",
-              padding: "12px",
-              background: "transparent",
-              color: "#176344",
-              border: "none",
-              cursor: "pointer",
-              fontSize: "16px",
-              fontWeight: "bold"
-            }}
-          >
-            {resetLoading
-              ? "রিসেট লিংক পাঠানো হচ্ছে..."
-              : "পাসওয়ার্ড ভুলে গেছেন?"}
-          </button>
 
           {message && (
             <p className="message" role="status">
