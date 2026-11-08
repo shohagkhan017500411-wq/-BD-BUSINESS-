@@ -7,6 +7,9 @@ const URL = import.meta.env.VITE_SUPABASE_URL;
 const KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 const db = URL && KEY ? createClient(URL, KEY) : null;
 
+const RESET_URL =
+  "https://bd-business.shohagkhan017500411.workers.dev/admin-reset.html";
+
 // BD BUSINESS বিভাগ
 const businessSections = [
   "হোম ড্যাশবোর্ড",
@@ -92,7 +95,6 @@ function App() {
 
       if (checkError || allowed !== true) {
         await db.auth.signOut();
-
         setMessage("আপনার অ্যাডমিন অনুমতি নেই।");
         setLoading(false);
         return;
@@ -131,8 +133,7 @@ function App() {
         await db.auth.resetPasswordForEmail(
           normalizedEmail,
           {
-            redirectTo:
-              `${window.location.origin}/admin-reset.html`
+            redirectTo: RESET_URL
           }
         );
 
@@ -147,9 +148,7 @@ function App() {
       }
 
     } catch (error) {
-      setMessage(
-        "সমস্যা হয়েছে। আবার চেষ্টা করুন।"
-      );
+      setMessage("সমস্যা হয়েছে। আবার চেষ্টা করুন।");
     }
 
     setResetLoading(false);
@@ -219,9 +218,7 @@ function App() {
               type="submit"
               disabled={loading || resetLoading}
             >
-              {loading
-                ? "অপেক্ষা করুন..."
-                : "লগইন করুন"}
+              {loading ? "অপেক্ষা করুন..." : "লগইন করুন"}
             </button>
           </form>
 
@@ -261,7 +258,6 @@ function App() {
     );
   }
 
-  // নির্বাচিত বিভাগ BD GAME কি না
   const isGame = gameSections.includes(active);
 
   // অ্যাডমিন ড্যাশবোর্ড
@@ -273,36 +269,26 @@ function App() {
           <small>Admin Control Panel</small>
         </div>
 
-        <button
-          className="logout"
-          onClick={logout}
-        >
+        <button className="logout" onClick={logout}>
           লগআউট
         </button>
       </header>
 
       <main className="admin-layout">
-
-        {/* বাম পাশের মেনু */}
         <aside className="admin-sidebar">
-
           <h3>BD বাণিজ্যিক</h3>
 
           {businessSections.map(section => (
             <button
               key={section}
-              className={
-                active === section ? "selected" : ""
-              }
+              className={active === section ? "selected" : ""}
               onClick={() => setActive(section)}
             >
               {section}
             </button>
           ))}
 
-          <h3 className="game-heading">
-            BD GAME
-          </h3>
+          <h3 className="game-heading">BD GAME</h3>
 
           {gameSections.map(section => (
             <button
@@ -317,12 +303,9 @@ function App() {
               {section}
             </button>
           ))}
-
         </aside>
 
-        {/* মূল কনটেন্ট */}
         <section className="content">
-
           <p className="section-label">
             {isGame ? "BD GAME" : "BD বাণিজ্যিক"}
           </p>
@@ -351,7 +334,6 @@ function App() {
               গেমের ডেটা পরিবর্তনের কার্যক্রম এখনো চালু হয়নি।
             </small>
           )}
-
         </section>
       </main>
     </div>
